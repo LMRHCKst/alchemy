@@ -1,0 +1,87 @@
+{
+  "_source": "Произведения растворимости при 298.15 К. Источник: CRC Handbook of Chemistry and Physics; Лурье Ю.Ю. «Справочник по аналитической химии»; NIST Critical Stability Constants.",
+  "_units": "Ksp в (моль/л)^n для реакции MxAy(тв) ⇌ x·M^y+ + y·A^x-. Приведены термодинамические значения (при бесконечном разбавлении).",
+  "_note": "Для расчёта в реальных условиях нужно учитывать ионную силу: Ksp — термодинамическая величина, а произведение концентраций отличается от неё в γ раз.",
+
+  "solids": [
+    {"formula": "AgCl",     "name": "Хлорид серебра",         "cation": "Ag+",  "cation_n": 1, "anion": "Cl-",    "anion_n": 1, "Ksp": 1.77e-10, "M": 143.321},
+    {"formula": "AgBr",     "name": "Бромид серебра",         "cation": "Ag+",  "cation_n": 1, "anion": "Br-",    "anion_n": 1, "Ksp": 5.35e-13, "M": 187.772},
+    {"formula": "AgI",      "name": "Иодид серебра",          "cation": "Ag+",  "cation_n": 1, "anion": "I-",     "anion_n": 1, "Ksp": 8.52e-17, "M": 234.773},
+    {"formula": "Ag2CrO4",  "name": "Хромат серебра",         "cation": "Ag+",  "cation_n": 2, "anion": "CrO4^2-","anion_n": 1, "Ksp": 1.12e-12, "M": 331.730},
+    {"formula": "Ag2S",     "name": "Сульфид серебра",        "cation": "Ag+",  "cation_n": 2, "anion": "S^2-",   "anion_n": 1, "Ksp": 6.3e-50,  "M": 247.802},
+    {"formula": "AgCN",     "name": "Цианид серебра",         "cation": "Ag+",  "cation_n": 1, "anion": "CN-",    "anion_n": 1, "Ksp": 5.97e-17, "M": 133.886},
+    {"formula": "AgSCN",    "name": "Тиоцианат серебра",      "cation": "Ag+",  "cation_n": 1, "anion": "SCN-",   "anion_n": 1, "Ksp": 1.03e-12, "M": 165.951},
+    {"formula": "Ag2SO4",   "name": "Сульфат серебра",        "cation": "Ag+",  "cation_n": 2, "anion": "SO4^2-", "anion_n": 1, "Ksp": 1.20e-5,  "M": 311.799},
+    {"formula": "Ag3PO4",   "name": "Фосфат серебра",         "cation": "Ag+",  "cation_n": 3, "anion": "PO4^3-", "anion_n": 1, "Ksp": 8.89e-17, "M": 418.576},
+
+    {"formula": "BaSO4",    "name": "Сульфат бария",          "cation": "Ba2+", "cation_n": 1, "anion": "SO4^2-", "anion_n": 1, "Ksp": 1.08e-10, "M": 233.390},
+    {"formula": "BaCO3",    "name": "Карбонат бария",         "cation": "Ba2+", "cation_n": 1, "anion": "CO3^2-", "anion_n": 1, "Ksp": 2.58e-9,  "M": 197.336},
+    {"formula": "BaCrO4",   "name": "Хромат бария",           "cation": "Ba2+", "cation_n": 1, "anion": "CrO4^2-","anion_n": 1, "Ksp": 1.17e-10, "M": 253.321},
+    {"formula": "BaC2O4",   "name": "Оксалат бария",          "cation": "Ba2+", "cation_n": 1, "anion": "C2O4^2-","anion_n": 1, "Ksp": 1.60e-7,  "M": 225.347},
+    {"formula": "BaF2",     "name": "Фторид бария",           "cation": "Ba2+", "cation_n": 1, "anion": "F-",     "anion_n": 2, "Ksp": 1.84e-7,  "M": 175.324},
+    {"formula": "Ba3(PO4)2","name": "Фосфат бария",           "cation": "Ba2+", "cation_n": 3, "anion": "PO4^3-", "anion_n": 2, "Ksp": 4.03e-37, "M": 601.925},
+
+    {"formula": "CaCO3",    "name": "Карбонат кальция (кальцит)","cation": "Ca2+","cation_n": 1,"anion": "CO3^2-","anion_n": 1, "Ksp": 3.36e-9,  "M": 100.087},
+    {"formula": "CaSO4",    "name": "Сульфат кальция",        "cation": "Ca2+", "cation_n": 1, "anion": "SO4^2-", "anion_n": 1, "Ksp": 4.93e-5,  "M": 136.141},
+    {"formula": "CaF2",     "name": "Фторид кальция (флюорит)","cation": "Ca2+","cation_n": 1, "anion": "F-",     "anion_n": 2, "Ksp": 3.45e-11, "M": 78.075},
+    {"formula": "CaC2O4",   "name": "Оксалат кальция",        "cation": "Ca2+", "cation_n": 1, "anion": "C2O4^2-","anion_n": 1, "Ksp": 2.32e-9,  "M": 128.097},
+    {"formula": "Ca3(PO4)2","name": "Фосфат кальция",         "cation": "Ca2+", "cation_n": 3, "anion": "PO4^3-", "anion_n": 2, "Ksp": 2.07e-33, "M": 310.177},
+    {"formula": "Ca(OH)2",  "name": "Гидроксид кальция",      "cation": "Ca2+", "cation_n": 1, "anion": "OH-",    "anion_n": 2, "Ksp": 5.02e-6,  "M": 74.093},
+    {"formula": "CaCrO4",   "name": "Хромат кальция",         "cation": "Ca2+", "cation_n": 1, "anion": "CrO4^2-","anion_n": 1, "Ksp": 7.1e-4,   "M": 156.073},
+
+    {"formula": "Mg(OH)2",  "name": "Гидроксид магния",       "cation": "Mg2+", "cation_n": 1, "anion": "OH-",    "anion_n": 2, "Ksp": 5.61e-12, "M": 58.320},
+    {"formula": "MgCO3",    "name": "Карбонат магния",        "cation": "Mg2+", "cation_n": 1, "anion": "CO3^2-", "anion_n": 1, "Ksp": 6.82e-6,  "M": 84.314},
+    {"formula": "MgC2O4",   "name": "Оксалат магния",         "cation": "Mg2+", "cation_n": 1, "anion": "C2O4^2-","anion_n": 1, "Ksp": 8.57e-5,  "M": 112.324},
+    {"formula": "MgF2",     "name": "Фторид магния",          "cation": "Mg2+", "cation_n": 1, "anion": "F-",     "anion_n": 2, "Ksp": 5.16e-11, "M": 62.302},
+
+    {"formula": "PbCl2",    "name": "Хлорид свинца(II)",      "cation": "Pb2+", "cation_n": 1, "anion": "Cl-",    "anion_n": 2, "Ksp": 1.70e-5,  "M": 278.106},
+    {"formula": "PbI2",     "name": "Иодид свинца(II)",       "cation": "Pb2+", "cation_n": 1, "anion": "I-",     "anion_n": 2, "Ksp": 9.8e-9,   "M": 461.009},
+    {"formula": "PbSO4",    "name": "Сульфат свинца(II)",     "cation": "Pb2+", "cation_n": 1, "anion": "SO4^2-", "anion_n": 1, "Ksp": 2.53e-8,  "M": 303.256},
+    {"formula": "PbCrO4",   "name": "Хромат свинца(II)",      "cation": "Pb2+", "cation_n": 1, "anion": "CrO4^2-","anion_n": 1, "Ksp": 2.8e-13,  "M": 323.194},
+    {"formula": "PbS",      "name": "Сульфид свинца(II)",     "cation": "Pb2+", "cation_n": 1, "anion": "S^2-",   "anion_n": 1, "Ksp": 3.0e-28,  "M": 239.265},
+    {"formula": "PbCO3",    "name": "Карбонат свинца(II)",    "cation": "Pb2+", "cation_n": 1, "anion": "CO3^2-", "anion_n": 1, "Ksp": 7.40e-14, "M": 267.208},
+
+    {"formula": "Cu(OH)2",  "name": "Гидроксид меди(II)",     "cation": "Cu2+", "cation_n": 1, "anion": "OH-",    "anion_n": 2, "Ksp": 2.20e-20, "M": 97.561},
+    {"formula": "CuS",      "name": "Сульфид меди(II)",       "cation": "Cu2+", "cation_n": 1, "anion": "S^2-",   "anion_n": 1, "Ksp": 6.3e-36,  "M": 95.611},
+    {"formula": "CuI",      "name": "Иодид меди(I)",          "cation": "Cu+",  "cation_n": 1, "anion": "I-",     "anion_n": 1, "Ksp": 1.27e-12, "M": 190.451},
+    {"formula": "CuCO3",    "name": "Карбонат меди(II)",      "cation": "Cu2+", "cation_n": 1, "anion": "CO3^2-", "anion_n": 1, "Ksp": 1.4e-10,  "M": 123.555},
+
+    {"formula": "Zn(OH)2",  "name": "Гидроксид цинка",        "cation": "Zn2+", "cation_n": 1, "anion": "OH-",    "anion_n": 2, "Ksp": 3.0e-17,  "M": 99.394},
+    {"formula": "ZnS",      "name": "Сульфид цинка (сфалерит)","cation": "Zn2+","cation_n": 1, "anion": "S^2-",   "anion_n": 1, "Ksp": 2.5e-22,  "M": 97.445},
+    {"formula": "ZnCO3",    "name": "Карбонат цинка",         "cation": "Zn2+", "cation_n": 1, "anion": "CO3^2-", "anion_n": 1, "Ksp": 1.46e-10, "M": 125.388},
+
+    {"formula": "Fe(OH)2",  "name": "Гидроксид железа(II)",   "cation": "Fe2+", "cation_n": 1, "anion": "OH-",    "anion_n": 2, "Ksp": 4.87e-17, "M": 89.859},
+    {"formula": "Fe(OH)3",  "name": "Гидроксид железа(III)",  "cation": "Fe3+", "cation_n": 1, "anion": "OH-",    "anion_n": 3, "Ksp": 2.79e-39, "M": 106.867},
+    {"formula": "FeS",      "name": "Сульфид железа(II)",     "cation": "Fe2+", "cation_n": 1, "anion": "S^2-",   "anion_n": 1, "Ksp": 8.0e-19,  "M": 87.910},
+    {"formula": "FeCO3",    "name": "Карбонат железа(II)",   "cation": "Fe2+", "cation_n": 1, "anion": "CO3^2-", "anion_n": 1, "Ksp": 3.13e-11, "M": 115.854},
+
+    {"formula": "Al(OH)3",  "name": "Гидроксид алюминия",     "cation": "Al3+", "cation_n": 1, "anion": "OH-",    "anion_n": 3, "Ksp": 1.3e-33,  "M": 78.004},
+    {"formula": "AlPO4",    "name": "Фосфат алюминия",        "cation": "Al3+", "cation_n": 1, "anion": "PO4^3-", "anion_n": 1, "Ksp": 9.84e-21, "M": 121.953},
+
+    {"formula": "Mn(OH)2",  "name": "Гидроксид марганца(II)", "cation": "Mn2+", "cation_n": 1, "anion": "OH-",    "anion_n": 2, "Ksp": 1.9e-13,  "M": 88.952},
+    {"formula": "MnS",      "name": "Сульфид марганца(II)",   "cation": "Mn2+", "cation_n": 1, "anion": "S^2-",   "anion_n": 1, "Ksp": 2.5e-13,  "M": 87.003},
+    {"formula": "MnCO3",    "name": "Карбонат марганца(II)",  "cation": "Mn2+", "cation_n": 1, "anion": "CO3^2-", "anion_n": 1, "Ksp": 2.24e-11, "M": 114.947},
+
+    {"formula": "Hg2Cl2",   "name": "Каломель (хлорид ртути(I))","cation": "Hg2^2+","cation_n": 1,"anion": "Cl-", "anion_n": 2, "Ksp": 1.43e-18, "M": 472.086},
+    {"formula": "HgS",      "name": "Сульфид ртути(II)",      "cation": "Hg2+", "cation_n": 1, "anion": "S^2-",   "anion_n": 1, "Ksp": 1.6e-52,  "M": 232.655},
+
+    {"formula": "Ni(OH)2",  "name": "Гидроксид никеля(II)",   "cation": "Ni2+", "cation_n": 1, "anion": "OH-",    "anion_n": 2, "Ksp": 5.48e-16, "M": 92.708},
+    {"formula": "NiS",      "name": "Сульфид никеля(II)",     "cation": "Ni2+", "cation_n": 1, "anion": "S^2-",   "anion_n": 1, "Ksp": 3.0e-19,  "M": 90.759},
+    {"formula": "Co(OH)2",  "name": "Гидроксид кобальта(II)", "cation": "Co2+", "cation_n": 1, "anion": "OH-",    "anion_n": 2, "Ksp": 5.92e-15, "M": 92.948},
+    {"formula": "CdS",      "name": "Сульфид кадмия",         "cation": "Cd2+", "cation_n": 1, "anion": "S^2-",   "anion_n": 1, "Ksp": 1.0e-28,  "M": 144.476},
+
+    {"formula": "SrSO4",    "name": "Сульфат стронция",       "cation": "Sr2+", "cation_n": 1, "anion": "SO4^2-", "anion_n": 1, "Ksp": 3.44e-7,  "M": 183.680},
+    {"formula": "SrCO3",    "name": "Карбонат стронция",      "cation": "Sr2+", "cation_n": 1, "anion": "CO3^2-", "anion_n": 1, "Ksp": 5.60e-10, "M": 147.629},
+    {"formula": "Li2CO3",   "name": "Карбонат лития",         "cation": "Li+",  "cation_n": 2, "anion": "CO3^2-", "anion_n": 1, "Ksp": 8.15e-4,  "M": 73.891},
+    {"formula": "Li3PO4",   "name": "Фосфат лития",           "cation": "Li+",  "cation_n": 3, "anion": "PO4^3-", "anion_n": 1, "Ksp": 2.37e-11, "M": 115.794}
+  ],
+
+  "hydroxide_amphoteric": {
+    "_note": "Амфотерные гидроксиды растворяются в избытке щёлочи с образованием комплексов. Это нужно учитывать при расчёте осаждения.",
+    "Zn(OH)2":  {"complex": "Zn(OH)4^2-", "log_beta": 15.5},
+    "Al(OH)3":  {"complex": "Al(OH)4-",   "log_beta": 33.5},
+    "Cr(OH)3":  {"complex": "Cr(OH)4-",   "log_beta": 29.8},
+    "Pb(OH)2":  {"complex": "Pb(OH)3-",   "log_beta": 15.4},
+    "Cu(OH)2":  {"complex": "Cu(OH)4^2-", "log_beta": 16.4}
+  }
+}

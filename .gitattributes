@@ -1,0 +1,15 @@
+# Единые окончания строк в репозитории.
+# В рабочей копии Windows остаются CRLF, в репозитории хранится LF.
+* text=auto
+
+# Исходники и тексты — LF
+*.py   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.txt  text eol=lf
+
+# Бинарные файлы не трогаем
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.exe  binary

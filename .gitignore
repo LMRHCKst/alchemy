@@ -1,0 +1,39 @@
+# Служебные файлы Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+
+# Кэш тестов и проверок
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Операционная система
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Журналы расчётов и временные файлы в корне проекта
+/journal*.json
+/_*.py
+/_shots/
