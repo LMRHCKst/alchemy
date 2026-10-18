@@ -29,6 +29,9 @@ from ..ui.tabs_basic import (
     FormulaAnalysisTab, GasTab, KineticsTab, MolarMassTab, PeriodicTableTab,
     SolutionTab, StoichiometryTab, ThermoTab,
 )
+from ..ui.tabs_organic import (       # noqa: E402
+    CombustionTab, OrganicClassesTab, OrganicReactionsTab,
+)
 from ..ui.tabs_school import (
     BondingTab, ClassesTab, HardnessTab, OxidationTab, QualitativeTab,
     RedoxTab, ShiftTab,
@@ -76,6 +79,10 @@ BASIC_TABS: list[TabSpec] = [
             OxidationTab, "basic"),
     TabSpec("Классы и названия", "Класс вещества и номенклатура",
             ClassesTab, "basic"),
+    TabSpec("Органические классы", "Класс, гомологи, изомеры", 
+            OrganicClassesTab, "basic"),
+    TabSpec("Формула по сгоранию", "Формула из продуктов сгорания",
+            CombustionTab, "basic"),
 ]
 
 ADVANCED_TABS: list[TabSpec] = [
@@ -114,6 +121,8 @@ ADVANCED_TABS: list[TabSpec] = [
             HardnessTab, "advanced"),
     TabSpec("Определитель ионов", "Качественные реакции", QualitativeTab,
             "advanced"),
+    TabSpec("Реакции органики", "Реакции классов, пробы, полимеры",
+            OrganicReactionsTab, "advanced"),
 ]
 
 

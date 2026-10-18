@@ -73,12 +73,12 @@ class TestAppShell(unittest.TestCase):
         self.assertIn("Alchemy", self.window.windowTitle())
 
     def test_all_modules_registered(self):
-        """14 основных и 18 дополнительных, включая школьные темы."""
+        """16 основных и 19 дополнительных, включая школьные темы."""
         self.assertEqual(len(self.window._items),
                          len(BASIC_TABS) + len(ADVANCED_TABS))
-        self.assertEqual(len(BASIC_TABS), 14)
-        self.assertEqual(len(ADVANCED_TABS), 18)
-        self.assertEqual(len(BASIC_TABS) + len(ADVANCED_TABS), 32)
+        self.assertEqual(len(BASIC_TABS), 16)
+        self.assertEqual(len(ADVANCED_TABS), 19)
+        self.assertEqual(len(BASIC_TABS) + len(ADVANCED_TABS), 35)
 
     def test_open_every_tab(self):
         for spec in BASIC_TABS + ADVANCED_TABS:
