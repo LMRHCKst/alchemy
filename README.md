@@ -31,6 +31,9 @@
   зависят все расчёты сразу.
 - **Не уверен, баг это или нет** — в [Discussions](https://github.com/LMRHCKst/alchemy/discussions).
 - **Чего не хватает** — шаблон «Предложение».
+- **Не про программу** — [Discussions → Оффтоп](https://github.com/LMRHCKst/alchemy/discussions/2):
+  что бесит в школе, зачем нужна химия, картинки с лабораторных, случайные
+  мысли. Туда можно всё, кроме багов — они там потеряются.
 
 Подробнее: [docs/feedback.md](docs/feedback.md).
 
