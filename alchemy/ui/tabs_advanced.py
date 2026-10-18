@@ -9,9 +9,9 @@
 from __future__ import annotations
 
 import math
-from tkinter import filedialog, messagebox
+from .widgets import filedialog, messagebox
 
-import customtkinter as ctk
+from . import widgets as ctk
 
 from ..core import formula as F
 from ..core import periodic
@@ -1587,7 +1587,7 @@ class GraphsTab(BaseTab):
         try:
             import matplotlib
             matplotlib.use("TkAgg")
-            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            from .widgets import FigureCanvasTkAgg
             from matplotlib.figure import Figure
         except ImportError:
             return

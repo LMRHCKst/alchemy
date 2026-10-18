@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-import customtkinter as ctk
+from . import widgets as ctk
 
 from ..core import formula as F
 from ..core import periodic

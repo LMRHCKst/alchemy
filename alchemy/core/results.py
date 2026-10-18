@@ -147,7 +147,15 @@ class Result:
         if self.steps:
             lines.append("")
             lines.append("Ход расчёта:")
-            lines.extend(f"  {i + 1}. {s}" for i, s in enumerate(self.steps))
+            # Пустые шаги — разделители между блоками. Номер им не нужен,
+            # иначе в списке появляются строки «2.» без текста.
+            number = 0
+            for step in self.steps:
+                if str(step).strip():
+                    number += 1
+                    lines.append(f"  {number}. {step}")
+                else:
+                    lines.append("")
 
         if self.warnings:
             lines.append("")

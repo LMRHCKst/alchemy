@@ -1,12 +1,11 @@
-"""Совместимый слой: tkinter-подобный API поверх Qt.
+"""Виджеты интерфейса: тонкий слой поверх Qt.
 
-Вкладки писались под customtkinter. Вместо того чтобы переписывать три
-с половиной тысячи строк, этот модуль даёт те же шесть виджетов и те же
-методы (pack, configure, insert, winfo_children, destroy) на Qt.
+Вкладки пишутся в привычном виде — pack(), configure(), insert(),
+winfo_children() — и не знают, что под ними Qt. Так код вкладок остаётся
+коротким: одна строка на поле вместо трёх.
 
-Что это даёт: вкладки остаются единственным источником правды, а перенос
-на Qt сводится к подмене backend. Когда-нибудь вкладки перепишут нативно,
-и тогда этот модуль просто выбросят.
+Имена CTk* остались от прежней версии интерфейса. Переименовывать их
+смысла нет: это просто имена, за ними теперь Qt.
 """
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ from PySide6.QtWidgets import (
 from . import theme
 
 # --------------------------------------------------------------------------
-# Разбор аргументов в стиле tkinter
+# Разбор аргументов виджетов
 # --------------------------------------------------------------------------
 
 
@@ -79,7 +78,7 @@ def _ensure_layout(parent: QWidget) -> QVBoxLayout | QHBoxLayout:
 def pack(widget: QWidget, side: str = "top", fill: str = "none",
          expand: bool = False, anchor: str = "center",
          padx=None, pady=None, **_ignored) -> None:
-    """Разместить виджет в контейнере, как это делал tkinter."""
+    """Разместить виджет в контейнере строкой."""
     parent = widget.parentWidget()
     if parent is None:
         return
@@ -443,7 +442,7 @@ def set_widget_scaling(value: float) -> None:
 
 
 class _FileDialog:
-    """Замена tkinter.filedialog."""
+    """Диалог сохранения и открытия файла."""
 
     @staticmethod
     def asksaveasfilename(**kwargs) -> str:
@@ -465,7 +464,7 @@ class _FileDialog:
 
 
 class _MessageBox:
-    """Замена tkinter.messagebox."""
+    """Окна сообщений."""
 
     @staticmethod
     def showinfo(title: str = "", message: str = "", **kwargs) -> None:
@@ -498,7 +497,7 @@ messagebox = _MessageBox()
 
 
 class FigureCanvasTkAgg:
-    """Замена matplotlib-бэкенда: рисуем фигуру в Qt-контейнере."""
+    """Рисуем фигуру matplotlib в контейнере Qt."""
 
     #: без минимальной высоты холст схлопывается в ноль
     MIN_HEIGHT = 320

@@ -1,15 +1,12 @@
-"""Вкладка Cantera: отдельный режим для газовых смесей.
-
-Новая вкладка, поэтому написана сразу под Qt, но на тех же компонентах
-с прежним API, что и остальные.
-"""
+"""Вкладка Cantera: отдельный режим для газовых смесей."""
 
 from __future__ import annotations
 
 from ..core.errors import AlchemyError
 from ..core.results import Result
 from ..engines import cantera_engine as CE
-from .components_tk import BaseTab, CTkLabel, LabeledCombo, LabeledEntry
+from ..ui.components import BaseTab, LabeledCombo, LabeledEntry
+from ..ui.widgets import CTkLabel
 
 #: давление в 1 атмосфере, Па
 ONE_ATM = 101325.0
@@ -58,7 +55,7 @@ class CanteraTab(BaseTab):
         self.mode.pack(fill="x", pady=4)
         self.mode.combo.configure(command=lambda: self._rebuild())
 
-        from .tkcompat import CTkFrame
+        from ..ui.widgets import CTkFrame
 
         self.area = CTkFrame(parent, fg_color=None)
         self.area.pack(fill="x", pady=6)

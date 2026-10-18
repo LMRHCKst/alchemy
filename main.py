@@ -1,11 +1,10 @@
 """Точка входа приложения Alchemy.
 
 Запуск:
-    python main.py           интерфейс на Qt (основной)
-    python main.py --tk      прежний интерфейс на tkinter
+    python main.py
 
-Qt — основной интерфейс. Старый оставлен запасным: он работает на тех же
-движках, поэтому расчёты в обоих совпадают.
+Интерфейс на Qt. Прежний на tkinter удалён: он тянул за собой слой
+совместимости, а расчёты в обоих и так совпадали.
 
 Программа не устанавливает пакеты самостоятельно: зависимости указываются
 явно, а справочные данные лежат в alchemy/data, поэтому интернет не нужен.
@@ -27,11 +26,8 @@ def check_dependencies(qt: bool = False) -> list[str]:
 
     required = {
         "matplotlib": "matplotlib",
+        "PySide6": "PySide6",
     }
-    if qt:
-        required["PySide6"] = "PySide6"
-    else:
-        required["customtkinter"] = "customtkinter"
 
     missing = []
     for module, label in required.items():
@@ -54,7 +50,6 @@ def install_hint(missing: list[str], qt: bool) -> str:
     """Подсказка по установке недостающих пакетов."""
     packages = {
         "PySide6": "PySide6-Essentials",
-        "customtkinter": "customtkinter",
         "matplotlib": "matplotlib",
     }
     names = " ".join(packages.get(item, item) for item in missing)
@@ -63,10 +58,7 @@ def install_hint(missing: list[str], qt: bool) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    # Qt — основной интерфейс. Старый на tkinter остаётся как запасной:
-    # --tk запускает его.
-    use_tk = "--tk" in args
-    use_qt = not use_tk
+    use_qt = True
 
     missing = check_dependencies(qt=use_qt)
     if missing:
@@ -82,13 +74,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Проверьте целостность папки alchemy/data")
         return 1
 
-    if use_qt:
-        from alchemy.ui_qt.app import run as qt_run
-        return qt_run([sys.argv[0], *args])
-
-    from alchemy.ui.app import run
-    run()
-    return 0
+    from alchemy.ui_qt.app import run as qt_run
+    return qt_run([sys.argv[0], *args])
 
 
 if __name__ == "__main__":

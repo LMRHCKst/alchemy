@@ -1,48 +1,48 @@
-"""Общие компоненты интерфейса: поля ввода, карточки, панель результата.
+"""Компоненты вкладок: карточки, поля, таблицы, панель результата.
 
-Задача этих компонентов — снять с вкладок рутину и держать единый вид.
-Каждая расчётная вкладка описывает только свои поля и вызов движка,
-а отрисовку результата, предупреждений и хода расчёта берёт на себя
-ResultView.
+Набор и методы те же, что ждут вкладки: pack(), .entry.insert(),
+.combo.configure(), get_rows() и прочие. Внутри — Qt.
 """
 
 from __future__ import annotations
 
-import tkinter as tk
-from tkinter import ttk
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea,
+    QSizePolicy, QTextEdit, QVBoxLayout, QWidget,
+)
 
-import customtkinter as ctk
-
+from ..core.errors import AlchemyError, InputError
 from ..core.results import Result
+from ..core.units import UnitError, parse_quantity
+from . import theme
+from .widgets import CTkEntry, CTkFrame, CTkLabel, CTkComboBox, _font, _color, pack
 
-# --------------------------------------------------------------------------
-# Цветовая схема
-# --------------------------------------------------------------------------
-
-COLOR_BG = "#1a1a1a"
-COLOR_CARD = "#242424"
-COLOR_CARD_ALT = "#2b2b2b"
-COLOR_ACCENT = "#4facfe"
-COLOR_ACCENT_DIM = "#2c6fa8"
-COLOR_OK = "#2ecc71"
-COLOR_WARN = "#f39c12"
-COLOR_ERROR = "#e74c3c"
-COLOR_TEXT = "#e8e8e8"
-COLOR_TEXT_DIM = "#9a9a9a"
-COLOR_BORDER = "#3a3a3a"
-
-FONT_TITLE = ("Segoe UI", 20, "bold")
-FONT_HEADING = ("Segoe UI", 14, "bold")
-FONT_BODY = ("Segoe UI", 12)
-FONT_SMALL = ("Segoe UI", 10)
-FONT_MONO = ("Consolas", 13)
-FONT_RESULT = ("Consolas", 22, "bold")
+# Константы, которые вкладки импортируют напрямую
+COLOR_TEXT_DIM = theme.COLOR_TEXT_DIM
+COLOR_TEXT = theme.COLOR_TEXT
+COLOR_ACCENT = theme.COLOR_ACCENT
+COLOR_WARN = theme.COLOR_WARN
+COLOR_ERROR = theme.COLOR_ERROR
+FONT_SMALL = theme.FONT_SMALL
+FONT_BODY = theme.FONT_BODY
 
 
-def setup_theme() -> None:
-    """Настроить внешний вид приложения."""
-    ctk.set_appearance_mode("dark")
-    ctk.set_default_color_theme("dark-blue")
+def _field_text(field) -> str:
+    """Текст из поля ввода любого вида."""
+    if field is None:
+        return ""
+    getter = getattr(field, "get", None)
+    if getter is None:
+        return ""
+    try:
+        return str(getter()).strip()
+    except Exception:
+        return ""
+
+
+def _pack_widget(widget, **kwargs) -> None:
+    pack(widget, **kwargs)
 
 
 # --------------------------------------------------------------------------
@@ -50,63 +50,46 @@ def setup_theme() -> None:
 # --------------------------------------------------------------------------
 
 
-class Card(ctk.CTkFrame):
-    """Карточка с заголовком и пояснением."""
+class Card(QFrame):
+    """Карточка с заголовком и пояснением. Содержимое кладут в .body."""
 
-    def __init__(self, master, title: str = "", desc: str = "", **kwargs):
-        super().__init__(master, fg_color=COLOR_CARD, corner_radius=12, **kwargs)
+    def __init__(self, master=None, title: str = "", desc: str = "", **kwargs):
+        super().__init__(master)
+        self.setObjectName("Card")
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(16, 12, 16, 14)
+        outer.setSpacing(4)
 
         if title:
-            header = ctk.CTkFrame(self, fg_color="transparent")
-            header.pack(fill="x", padx=18, pady=(14, 4))
-            ctk.CTkLabel(header, text=title, font=FONT_HEADING,
-                         text_color=COLOR_TEXT, anchor="w").pack(fill="x")
-            if desc:
-                ctk.CTkLabel(header, text=desc, font=FONT_SMALL,
-                             text_color=COLOR_TEXT_DIM, anchor="w",
-                             justify="left", wraplength=760).pack(fill="x", pady=(2, 0))
-
-        self.body = ctk.CTkFrame(self, fg_color="transparent")
-        self.body.pack(fill="both", expand=True, padx=18, pady=(6, 14))
-
-
-class CollapsibleCard(ctk.CTkFrame):
-    """Карточка, которую можно свернуть — для справочной информации."""
-
-    def __init__(self, master, title: str, desc: str = "", expanded: bool = False, **kwargs):
-        super().__init__(master, fg_color=COLOR_CARD, corner_radius=12, **kwargs)
-        self._expanded = expanded
-
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", padx=18, pady=(12, 4))
-
-        self._toggle_btn = ctk.CTkButton(
-            header, text=f"{'▼' if expanded else '▶'}  {title}",
-            anchor="w", fg_color="transparent", hover_color=COLOR_CARD_ALT,
-            font=FONT_HEADING, text_color=COLOR_TEXT, height=28,
-            command=self.toggle,
-        )
-        self._toggle_btn.pack(fill="x")
-
+            heading = QLabel(title)
+            heading.setObjectName("CardTitle")
+            outer.addWidget(heading)
         if desc:
-            ctk.CTkLabel(header, text=desc, font=FONT_SMALL,
-                         text_color=COLOR_TEXT_DIM, anchor="w",
-                         justify="left", wraplength=760).pack(fill="x", padx=8)
+            description = QLabel(desc)
+            description.setObjectName("CardDesc")
+            description.setWordWrap(True)
+            outer.addWidget(description)
 
-        self.body = ctk.CTkFrame(self, fg_color="transparent")
-        if expanded:
-            self.body.pack(fill="both", expand=True, padx=18, pady=(4, 14))
+        self.body = CTkFrame(self, fg_color=None)
+        self.body.setObjectName("CardBody")
+        body_layout = QVBoxLayout(self.body)
+        body_layout.setContentsMargins(0, 6 if title or desc else 0, 0, 0)
+        body_layout.setSpacing(6)
+        outer.addWidget(self.body)
 
-    def toggle(self) -> None:
-        self._expanded = not self._expanded
-        text = self._toggle_btn.cget("text")
-        stripped = text.split("  ", 1)[1] if "  " in text else text
-        if self._expanded:
-            self._toggle_btn.configure(text=f"▼  {stripped}")
-            self.body.pack(fill="both", expand=True, padx=18, pady=(4, 14))
-        else:
-            self._toggle_btn.configure(text=f"▶  {stripped}")
-            self.body.pack_forget()
+    def pack(self, **kwargs) -> None:
+        _pack_widget(self, **kwargs)
+
+
+class CollapsibleCard(Card):
+    """Карточка, содержимое которой скрыто до нажатия."""
+
+    def __init__(self, master=None, title: str = "Подробнее", desc: str = "",
+                 expanded: bool = False, **kwargs):
+        super().__init__(master, title=title, desc=desc)
+        self._expanded = expanded
+        self.body.setVisible(expanded)
 
 
 # --------------------------------------------------------------------------
@@ -114,118 +97,127 @@ class CollapsibleCard(ctk.CTkFrame):
 # --------------------------------------------------------------------------
 
 
-class LabeledEntry(ctk.CTkFrame):
-    """Поле ввода с подписью, единицей измерения и подсказкой."""
+class LabeledEntry(QWidget):
+    """Подпись, поле ввода и необязательная подсказка."""
 
-    def __init__(self, master, label: str, unit: str = "",
-                 default: str = "", width: int = 140,
-                 hint: str = "", **kwargs):
-        super().__init__(master, fg_color="transparent", **kwargs)
+    #: ширина колонки подписи. Совпадает с той, что используют вкладки
+    #: в своих помощниках полей, иначе списки и поля встают на разные
+    #: вертикали и колонка выглядит рваной.
+    LABEL_WIDTH = 340
 
-        self.unit = unit
+    def __init__(self, master=None, label: str = "", width: int = 180,
+                 hint: str = "", default: str = "", **kwargs):
+        super().__init__(master)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
 
-        text = label + (f", {unit}" if unit else "")
-        ctk.CTkLabel(self, text=text, font=FONT_BODY, text_color=COLOR_TEXT,
-                     anchor="w").pack(side="left", padx=(0, 8))
+        self.label = QLabel(label)
+        self.label.setObjectName("FieldLabel")
+        self.label.setFixedWidth(self.LABEL_WIDTH)
+        row.addWidget(self.label)
 
-        self.entry = ctk.CTkEntry(self, width=width, font=FONT_MONO)
-        self.entry.pack(side="left")
+        self.entry = CTkEntry(self, width=width, font=("Consolas", 12))
         if default:
-            self.entry.insert(0, default)
+            self.entry.setText(default)
+        row.addWidget(self.entry)
 
         if hint:
-            ctk.CTkLabel(self, text=hint, font=FONT_SMALL,
-                         text_color=COLOR_TEXT_DIM).pack(side="left", padx=(8, 0))
+            self.hint = QLabel(hint)
+            self.hint.setObjectName("FieldHint")
+            row.addWidget(self.hint)
+        else:
+            self.hint = None
+
+        row.addStretch(1)
+
+    def pack(self, **kwargs) -> None:
+        _pack_widget(self, **kwargs)
 
     def get(self) -> str:
-        return self.entry.get().strip()
+        return self.entry.text()
 
-    def set(self, value) -> None:
-        self.entry.delete(0, "end")
-        if value is not None:
-            self.entry.insert(0, str(value))
+    def set(self, text: str) -> None:
+        self.entry.setText(str(text))
 
     def clear(self) -> None:
-        self.entry.delete(0, "end")
+        self.entry.clear()
 
-    def value(self, required: bool = True, name: str | None = None) -> float | None:
-        """Прочитать число. Пустое поле даёт None, если значение необязательно."""
-        from ..core.errors import InputError
-        from ..core.units import UnitError, parse_quantity
-
-        raw = self.get()
-        if not raw:
-            if required:
-                raise InputError(f"Не заполнено поле «{name or self.entry.get()}»")
-            return None
-        try:
-            value, _ = parse_quantity(raw)
-        except UnitError:
-            raise InputError(f"Не удалось прочитать число: «{raw}»")
-        return value
+    def winfo_children(self) -> list:
+        return self.findChildren(QWidget, options=Qt.FindDirectChildrenOnly)
 
 
-class LabeledCombo(ctk.CTkFrame):
-    """Выпадающий список с подписью.
+class LabeledCombo(QWidget):
+    """Выпадающий список с подписью."""
 
-    Ширина подписи по умолчанию совпадает с той, что использует помощник
-    полей ввода, поэтому списки и обычные поля встают на одну вертикаль.
-    Иначе в одной форме оказывалось два разных отступа и колонка выглядела
-    рваной.
-    """
+    changed = Signal()
 
-    #: ширина колонки подписи, общая с LabeledEntry
-    LABEL_WIDTH = 330
+    LABEL_WIDTH = LabeledEntry.LABEL_WIDTH
 
-    def __init__(self, master, label: str, values: list[str],
-                 default: str | None = None, width: int = 200,
+    def __init__(self, master=None, label: str = "", values=None,
+                 default: str | None = None, width: int = 220,
                  label_width: int | None = None, **kwargs):
-        super().__init__(master, fg_color="transparent", **kwargs)
+        super().__init__(master)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
 
         if label:
-            ctk.CTkLabel(self, text=label, font=FONT_BODY,
-                         text_color=COLOR_TEXT,
-                         width=self.LABEL_WIDTH if label_width is None
-                         else label_width,
-                         anchor="w").pack(side="left", padx=(0, 8))
+            self.label = QLabel(label)
+            self.label.setObjectName("FieldLabel")
+            self.label.setFixedWidth(self.LABEL_WIDTH if label_width is None
+                                     else label_width)
+            row.addWidget(self.label)
 
-        self.var = ctk.StringVar(value=default or (values[0] if values else ""))
-        self.combo = ctk.CTkComboBox(self, values=values, variable=self.var,
-                                     width=width, font=FONT_BODY)
-        self.combo.pack(side="left")
+        self.combo = CTkComboBox(self, values=values, width=width)
+        if default:
+            self.combo.setCurrentText(default)
+        row.addWidget(self.combo)
+        row.addStretch(1)
+
+        self.combo.currentTextChanged.connect(lambda _: self.changed.emit())
+
+    def pack(self, **kwargs) -> None:
+        _pack_widget(self, **kwargs)
 
     def get(self) -> str:
-        return self.var.get()
+        return self.combo.currentText()
 
     def set(self, value: str) -> None:
-        self.var.set(value)
+        self.combo.setCurrentText(str(value))
+
+    def winfo_children(self) -> list:
+        return self.findChildren(QWidget, options=Qt.FindDirectChildrenOnly)
 
 
-class KeyValueGrid(ctk.CTkFrame):
+class KeyValueGrid(QWidget):
     """Таблица «поле — значение» для компактного ввода многих величин."""
 
-    def __init__(self, master, fields: list[tuple[str, str, str]] | None = None,
-                 columns: int = 2, **kwargs):
-        """fields: список троек (ключ, подпись, значение по умолчанию)."""
-        super().__init__(master, fg_color="transparent", **kwargs)
-        self.entries: dict[str, ctk.CTkEntry] = {}
+    def __init__(self, master=None, fields=None, columns: int = 2, **kwargs):
+        super().__init__(master)
+        from PySide6.QtWidgets import QGridLayout
+
+        self._grid = QGridLayout(self)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._grid.setHorizontalSpacing(8)
+        self._grid.setVerticalSpacing(4)
+        self.entries: dict[str, CTkEntry] = {}
         self._row = 0
         self._col = 0
-        self._columns = columns
+        self._columns = max(1, columns)
 
-        if fields:
-            for key, label, default in fields:
-                self.add_field(key, label, default)
+        for key, label, default in (fields or []):
+            self.add_field(key, label, default)
 
     def add_field(self, key: str, label: str, default: str = "",
-                  width: int = 120) -> ctk.CTkEntry:
-        ctk.CTkLabel(self, text=label, font=FONT_BODY,
-                     text_color=COLOR_TEXT).grid(
-            row=self._row, column=self._col * 2, padx=(10, 4), pady=4, sticky="e")
-        entry = ctk.CTkEntry(self, width=width, font=FONT_MONO)
-        entry.grid(row=self._row, column=self._col * 2 + 1, padx=(0, 16), pady=4, sticky="w")
+                  width: int = 120) -> CTkEntry:
+        caption = QLabel(label)
+        caption.setObjectName("FieldLabel")
+        entry = CTkEntry(self, width=width, font=("Consolas", 12))
         if default:
-            entry.insert(0, default)
+            entry.setText(str(default))
+        self._grid.addWidget(caption, self._row, self._col * 2)
+        self._grid.addWidget(entry, self._row, self._col * 2 + 1)
         self.entries[key] = entry
 
         self._col += 1
@@ -234,32 +226,175 @@ class KeyValueGrid(ctk.CTkFrame):
             self._row += 1
         return entry
 
+    def pack(self, **kwargs) -> None:
+        _pack_widget(self, **kwargs)
+
     def get(self, key: str) -> str:
-        return self.entries[key].get().strip()
+        return self.entries[key].text().strip()
 
-    def value(self, key: str, required: bool = True, label: str = "") -> float | None:
-        from ..core.errors import InputError
-        from ..core.units import UnitError, parse_quantity
-
+    def value(self, key: str, required: bool = True,
+              label: str = "") -> float | None:
         raw = self.get(key)
         if not raw:
             if required:
                 raise InputError(f"Не заполнено поле «{label or key}»")
             return None
         try:
-            value, _ = parse_quantity(raw)
+            number, _unit = parse_quantity(raw)
         except UnitError:
-            raise InputError(f"Не удалось прочитать число в поле «{label or key}»: «{raw}»")
-        return value
+            raise InputError(
+                f"Не удалось прочитать число в поле «{label or key}»: «{raw}»")
+        return number
 
     def set(self, key: str, value) -> None:
-        self.entries[key].delete(0, "end")
+        self.entries[key].clear()
         if value is not None:
-            self.entries[key].insert(0, str(value))
+            self.entries[key].setText(str(value))
 
     def clear(self) -> None:
         for entry in self.entries.values():
-            entry.delete(0, "end")
+            entry.clear()
+
+
+class EditableTable(QWidget):
+    """Таблица «вещество — значение» с добавлением и удалением строк."""
+
+    def __init__(self, master=None, columns=None, add_label: str = "Добавить",
+                 **kwargs):
+        super().__init__(master)
+        self.columns = list(columns or ["Вещество", "Значение"])
+        self._rows: list[list[CTkEntry]] = []
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(4)
+
+        self.header = CTkFrame(self, fg_color=None)
+        outer.addWidget(self.header)
+
+        self.rows_area = CTkFrame(self, fg_color=None)
+        outer.addWidget(self.rows_area)
+
+        self._add_button = QPushButton(add_label)
+        self._add_button.setFixedWidth(190)
+        self._add_button.clicked.connect(lambda: self.add_row())
+        outer.addWidget(self._add_button)
+
+        self._rebuild_header()
+        self.add_row()
+
+    def _rebuild_header(self) -> None:
+        for child in self.header.winfo_children():
+            child.destroy()
+        row_layout = self.header.layout()
+        if row_layout is None:
+            row_layout = QHBoxLayout(self.header)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(4)
+        for name in self.columns:
+            caption = CTkLabel(self.header, text=name, font=("Segoe UI", 9),
+                               text_color=theme.COLOR_TEXT_DIM, width=150,
+                               anchor="w")
+            row_layout.addWidget(caption)
+
+    def add_row(self, values=None) -> None:
+        """Добавить строку. Значения можно задать сразу списком."""
+        entries: list[CTkEntry] = []
+        row = QWidget(self.rows_area)
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        for index in range(len(self.columns)):
+            entry = CTkEntry(row, width=150 if index == 0 else 110,
+                             font=("Consolas", 12))
+            if values and index < len(values) and values[index]:
+                entry.setText(str(values[index]))
+            layout.addWidget(entry)
+            entries.append(entry)
+
+        remove = QPushButton("✕")
+        remove.setFixedWidth(28)
+        remove.clicked.connect(lambda: self._remove(entries))
+        layout.addWidget(remove)
+        layout.addStretch(1)
+
+        area_layout = self.rows_area.layout()
+        if area_layout is None:
+            area_layout = QVBoxLayout(self.rows_area)
+            area_layout.setContentsMargins(0, 0, 0, 0)
+            area_layout.setSpacing(2)
+        area_layout.addWidget(row)
+
+        entries[0]._row_widget = row
+        self._rows.append(entries)
+
+    def _remove(self, entries: list[CTkEntry]) -> None:
+        if len(self._rows) <= 1:
+            for entry in entries:
+                entry.clear()
+            return
+        self._rows.remove(entries)
+        row = getattr(entries[0], "_row_widget", None)
+        if row is not None:
+            row.setParent(None)
+            row.deleteLater()
+
+    def reset(self) -> None:
+        """Убрать все строки и оставить одну пустую."""
+        for entries in self._rows:
+            row = getattr(entries[0], "_row_widget", None)
+            if row is not None:
+                row.setParent(None)
+                row.deleteLater()
+        self._rows.clear()
+        self._rebuild_header()
+        self.add_row()
+
+    def get_rows(self) -> list[list[str]]:
+        """Непустые строки таблицы."""
+        result = []
+        for entries in self._rows:
+            values = [entry.text() for entry in entries]
+            if any(value.strip() for value in values):
+                result.append(values)
+        return result
+
+    def clear(self) -> None:
+        for entries in self._rows:
+            for entry in entries:
+                entry.clear()
+
+    def pack(self, **kwargs) -> None:
+        _pack_widget(self, **kwargs)
+
+
+# --------------------------------------------------------------------------
+# Чтение чисел
+# --------------------------------------------------------------------------
+
+
+def _read_number(raw: str, name: str = "", unit: str | None = None) -> float:
+    """Число из строки с понятным сообщением об ошибке."""
+    text = str(raw).strip().replace(",", ".")
+    if not text:
+        raise InputError(f"Не заполнено поле: {name}")
+
+    if unit:
+        try:
+            quantity = parse_quantity(f"{text} {unit}")
+            return quantity.value
+        except UnitError:
+            raise InputError(f"Не удалось прочитать число: «{raw}»")
+
+    try:
+        return float(text)
+    except ValueError:
+        try:
+            quantity = parse_quantity(text)
+            return quantity.value
+        except UnitError:
+            raise InputError(f"Не удалось прочитать число: «{raw}»")
 
 
 # --------------------------------------------------------------------------
@@ -267,401 +402,342 @@ class KeyValueGrid(ctk.CTkFrame):
 # --------------------------------------------------------------------------
 
 
-class ResultView(ctk.CTkFrame):
-    """Отображение результата расчёта: значение, допущения, предупреждения.
+class ResultView(QFrame):
+    """Показ результата: значение, модель, предупреждения, таблица, расчёт."""
 
-    Отдельно показывает ход расчёта — чтобы результат можно было проверить
-    руками, а не принимать на веру.
-    """
+    def __init__(self, master=None, **kwargs):
+        super().__init__(master)
+        self.setObjectName("ResultPanel")
 
-    def __init__(self, master, **kwargs):
-        super().__init__(master, fg_color=COLOR_CARD_ALT, corner_radius=12, **kwargs)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(18, 14, 18, 14)
+        outer.setSpacing(6)
 
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", padx=18, pady=(14, 0))
+        self.label = QLabel("Результат появится здесь")
+        self.label.setObjectName("ResultLabel")
+        self.label.setWordWrap(True)
+        outer.addWidget(self.label)
 
-        self.label = ctk.CTkLabel(header, text="", font=FONT_HEADING,
-                                  text_color=COLOR_TEXT, anchor="w")
-        self.label.pack(fill="x")
+        self.value_label = QLabel("—")
+        self.value_label.setObjectName("ResultValue")
+        self.value_label.setWordWrap(True)
+        outer.addWidget(self.value_label)
 
-        self.value_label = ctk.CTkLabel(self, text="—", font=FONT_RESULT,
-                                        text_color=COLOR_ACCENT, anchor="w")
-        self.value_label.pack(fill="x", padx=18, pady=(6, 0))
+        self.method_label = QLabel("")
+        self.method_label.setObjectName("ResultMethod")
+        self.method_label.setWordWrap(True)
+        outer.addWidget(self.method_label)
 
-        self.method_label = ctk.CTkLabel(self, text="", font=FONT_SMALL,
-                                         text_color=COLOR_TEXT_DIM, anchor="w",
-                                         justify="left", wraplength=760)
-        self.method_label.pack(fill="x", padx=18, pady=(2, 0))
+        self.warn_box = QWidget()
+        self.warn_layout = QVBoxLayout(self.warn_box)
+        self.warn_layout.setContentsMargins(0, 0, 0, 0)
+        self.warn_layout.setSpacing(2)
+        self.warn_box.setVisible(False)
+        outer.addWidget(self.warn_box)
 
-        # Плашка предупреждений создаётся, но не упаковывается: пустой
-        # CTkFrame по умолчанию занимает 200 px по высоте и оставляет
-        # в панели результатов широкую пустую полосу. Появляется она
-        # только когда есть что показать.
-        self.warn_frame = ctk.CTkFrame(self, fg_color="transparent", height=0)
+        from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableWidget
 
-        # Таблица — для табличных результатов
-        self.table_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.table = QTableWidget()
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setWordWrap(True)
+        self.table.setVisible(False)
+        outer.addWidget(self.table)
 
-        # Детали — сворачиваемый блок
-        self.details_btn = ctk.CTkButton(
-            self, text="▶  Показать ход расчёта и допущения",
-            anchor="w", fg_color="transparent", hover_color=COLOR_CARD,
-            text_color=COLOR_ACCENT, font=FONT_SMALL, height=26,
-            command=self._toggle_details,
-        )
+        self.details_button = QPushButton("▶  Показать ход расчёта и допущения")
+        self.details_button.setObjectName("Link")
+        self.details_button.setVisible(False)
+        self.details_button.clicked.connect(self._toggle_details)
+        outer.addWidget(self.details_button)
 
-        self.details_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.details_text = ctk.CTkTextbox(self.details_frame, height=240,
-                                           font=("Consolas", 11),
-                                           fg_color=COLOR_CARD,
-                                           text_color=COLOR_TEXT,
-                                           wrap="word")
-        self.details_text.pack(fill="both", expand=True, padx=6, pady=(0, 12))
-        self._details_shown = False
+        # LaTeX появляется только там, где есть формула или уравнение
+        self.latex_button = QPushButton("Копировать LaTeX")
+        self.latex_button.setObjectName("Link")
+        self.latex_button.setVisible(False)
+        self.latex_button.clicked.connect(self._copy_latex)
+        outer.addWidget(self.latex_button)
 
-        self.clear()
+        self._latex_text = ""
+        self.last_result: Result | None = None
+
+        self.details = QTextEdit()
+        self.details.setReadOnly(True)
+        self.details.setFont(_font(("Consolas", 9)))
+        self.details.setMinimumHeight(160)
+        self.details.setVisible(False)
+        outer.addWidget(self.details)
+
+        self._details_open = False
+
+    def pack(self, **kwargs) -> None:
+        _pack_widget(self, **kwargs)
 
     # ---------------- показ ----------------
 
     def clear(self) -> None:
-        self.label.configure(text="Результат появится здесь")
-        self.value_label.configure(text="—", text_color=COLOR_TEXT_DIM)
-        self.method_label.configure(text="")
-        for widget in self.warn_frame.winfo_children():
-            widget.destroy()
-        for widget in self.table_frame.winfo_children():
-            widget.destroy()
-        self.table_frame.pack_forget()
-        self._sync_warnings()
-        # До расчёта показывать нечего, поэтому кнопка хода расчёта скрыта:
-        # иначе она висит под пустой панелью и выглядит как приглашение
-        self.details_btn.pack_forget()
-        self._set_details_text("")
-
-    def _sync_warnings(self) -> None:
-        """Показать плашку предупреждений, только если есть что показать."""
-        if not self.warn_frame.winfo_children():
-            self.warn_frame.pack_forget()
-            return
-        if self.details_btn.winfo_manager():
-            self.warn_frame.pack(fill="x", padx=18, pady=(8, 0),
-                                 before=self.details_btn)
-        else:
-            self.warn_frame.pack(fill="x", padx=18, pady=(8, 0))
-
-    def _sync_details_button(self) -> None:
-        """Кнопка хода расчёта нужна только когда есть что показывать."""
-        if self._details_text_has_content():
-            self.details_btn.pack(fill="x", padx=12, pady=(6, 0))
-        else:
-            self.details_btn.pack_forget()
-
-    def _pack_table(self) -> None:
-        """Поставить таблицу между предупреждениями и кнопкой хода расчёта."""
-        if self.details_btn.winfo_manager():
-            self.table_frame.pack(fill="x", padx=18, pady=(10, 0),
-                                  before=self.details_btn)
-        else:
-            self.table_frame.pack(fill="x", padx=18, pady=(10, 0))
-
-    def _details_text_has_content(self) -> bool:
-        return bool(self.details_text.get("0.0", "end").strip())
+        self.label.setText("Результат появится здесь")
+        self.value_label.setText("—")
+        self.value_label.setStyleSheet(f"color: {theme.COLOR_TEXT_DIM};")
+        self.method_label.setText("")
+        self._clear_warnings()
+        self.table.setVisible(False)
+        self.table.clear()
+        self.table.setRowCount(0)
+        self.table.setColumnCount(0)
+        self.details.clear()
+        self.details.setVisible(False)
+        self.details_button.setVisible(False)
+        self.set_latex("")
+        self.latex_button.setText("Копировать LaTeX")
+        self.last_result = None
+        self._details_open = False
 
     def show(self, result: Result) -> None:
-        """Показать результат расчёта."""
-        self.label.configure(text=result.label or "Результат")
+        self.last_result = result
+        self.latex_button.setText("Копировать LaTeX")
+        self.label.setText(result.label or "Результат")
 
-        # Для табличных результатов крупная строка «таблица, строк: 17»
-        # ничего не сообщает: данные показывает сама таблица ниже.
-        tabular = (result.kind in ("table", "series")
-                   and isinstance(result.value, list))
+        # Словарь — это несколько величин сразу (например пересчёт
+        # концентраций). Показывать его строкой нечитаемо, поэтому таблицей.
+        mapping = isinstance(result.value, dict)
+        tabular = mapping or (result.kind in ("table", "series")
+                              and isinstance(result.value, list))
         if tabular:
-            self.value_label.pack_forget()
+            self.value_label.setVisible(False)
         else:
-            self.value_label.pack(fill="x", padx=18, pady=(6, 0),
-                                  before=self.method_label)
+            self.value_label.setVisible(True)
             if result.value is None:
-                self.value_label.configure(text="расчёт не выполнен",
-                                           text_color=COLOR_ERROR)
+                self.value_label.setText("расчёт не выполнен")
+                self.value_label.setStyleSheet(f"color: {theme.COLOR_ERROR};")
             else:
-                self.value_label.configure(
-                    text=result.formatted(),
-                    text_color=(COLOR_ERROR if result.has_warnings
-                                else COLOR_ACCENT),
-                )
+                self.value_label.setText(result.formatted())
+                color = (theme.COLOR_ERROR if result.has_warnings
+                         else theme.COLOR_ACCENT)
+                self.value_label.setStyleSheet(f"color: {color};")
 
-        self.method_label.configure(text=result.method or "")
+        self.method_label.setText(result.method or "")
+        self._fill_warnings(result.warnings)
+        if mapping:
+            self._fill_rows(
+                [{"Величина": key, "Значение": value}
+                 for key, value in result.value.items()],
+                ["Величина", "Значение"])
+        elif tabular:
+            self._fill_table(result)
+        else:
+            self.table.setVisible(False)
 
-        # Предупреждения
-        for widget in self.warn_frame.winfo_children():
-            widget.destroy()
-        for warning in result.warnings:
-            row = ctk.CTkFrame(self.warn_frame, fg_color="transparent")
-            row.pack(fill="x", pady=1)
-            ctk.CTkLabel(row, text="⚠", font=FONT_BODY, text_color=COLOR_WARN,
-                         width=20).pack(side="left", anchor="n")
-            ctk.CTkLabel(row, text=warning, font=FONT_SMALL,
-                         text_color=COLOR_WARN, anchor="w", justify="left",
-                         wraplength=700).pack(side="left", fill="x", expand=True)
-        self._sync_warnings()
-
-        # Табличный результат
-        for widget in self.table_frame.winfo_children():
-            widget.destroy()
-        if result.kind == "table" and isinstance(result.value, list):
-            self._build_table(result)
-        elif result.kind == "series" and isinstance(result.value, list):
-            self._build_series_note(result)
-
-        # Текст деталей
-        self._set_details_text(result.summary())
-        self._sync_details_button()
-
-        if result.has_warnings:
-            self._show_details()
+        summary = result.summary()
+        has_details = bool(summary.strip())
+        self.details.setPlainText(summary)
+        self.details_button.setVisible(has_details)
+        self.details.setVisible(has_details and self._details_open)
 
     def show_error(self, message: str) -> None:
-        """Показать сообщение об ошибке."""
-        self.label.configure(text="Ошибка расчёта")
-        self.value_label.configure(text="—", text_color=COLOR_ERROR)
-        self.method_label.configure(text="")
-        for widget in self.warn_frame.winfo_children():
-            widget.destroy()
-        row = ctk.CTkFrame(self.warn_frame, fg_color="transparent")
-        row.pack(fill="x", pady=1)
-        ctk.CTkLabel(row, text="✕", font=FONT_BODY, text_color=COLOR_ERROR,
-                     width=20).pack(side="left", anchor="n")
-        ctk.CTkLabel(row, text=message, font=FONT_BODY, text_color=COLOR_ERROR,
-                     anchor="w", justify="left", wraplength=700).pack(
-            side="left", fill="x", expand=True)
-        self._sync_warnings()
-        self.table_frame.pack_forget()
-        self._set_details_text("")
-        self._sync_details_button()
+        self.label.setText("Ошибка расчёта")
+        self.value_label.setVisible(True)
+        self.value_label.setText("—")
+        self.value_label.setStyleSheet(f"color: {theme.COLOR_ERROR};")
+        self.method_label.setText("")
+        self._fill_warnings([message], is_error=True)
+        self.table.setVisible(False)
+        self.details.clear()
+        self.details.setVisible(False)
+        self.details_button.setVisible(False)
 
     # ---------------- внутреннее ----------------
 
-    def _set_details_text(self, text: str) -> None:
-        self.details_text.configure(state="normal")
-        self.details_text.delete("0.0", "end")
-        if text:
-            self.details_text.insert("0.0", text)
-        self.details_text.configure(state="disabled")
+    def _clear_warnings(self) -> None:
+        while self.warn_layout.count():
+            item = self.warn_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+        self.warn_box.setVisible(False)
 
-    def _toggle_details(self) -> None:
-        if self._details_shown:
-            self._hide_details()
-        else:
-            self._show_details()
+    def _fill_warnings(self, messages, is_error: bool = False) -> None:
+        self._clear_warnings()
+        for message in messages:
+            mark = "✕" if is_error else "⚠"
+            row = QLabel(f"{mark}  {message}")
+            row.setWordWrap(True)
+            row.setStyleSheet(
+                f"color: {theme.COLOR_ERROR if is_error else theme.COLOR_WARN};")
+            self.warn_layout.addWidget(row)
+        self.warn_box.setVisible(bool(messages))
 
-    def _show_details(self) -> None:
-        self.details_frame.pack(fill="both", expand=True)
-        self.details_btn.configure(text="▼  Скрыть ход расчёта и допущения")
-        self._details_shown = True
-
-    def _hide_details(self) -> None:
-        self.details_frame.pack_forget()
-        self.details_btn.configure(text="▶  Показать ход расчёта и допущения")
-        self._details_shown = False
-
-    def _build_table(self, result: Result) -> None:
+    def _fill_table(self, result: Result) -> None:
         rows = result.value
         if not rows:
+            self.table.setVisible(False)
             return
-        columns = result.meta.get("columns") or list(rows[0].keys())
 
-        self._pack_table()
+        # Серии приходят точками (x, y), таблицы — словарями
+        if isinstance(rows[0], dict):
+            columns = result.meta.get("columns") or list(rows[0].keys())
+            values = [[row.get(name, "") for name in columns] for row in rows]
+        else:
+            columns = [result.meta.get("x_label", "X"),
+                       result.meta.get("y_label", "Y")]
+            values = [list(row) for row in rows]
 
-        style = ttk.Style()
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-        style.configure("Alchemy.Treeview",
-                        background=COLOR_CARD,
-                        foreground=COLOR_TEXT,
-                        fieldbackground=COLOR_CARD,
-                        borderwidth=0,
-                        font=FONT_SMALL)
-        style.configure("Alchemy.Treeview.Heading",
-                        background=COLOR_BORDER,
-                        foreground=COLOR_TEXT,
-                        font=FONT_SMALL)
-        style.map("Alchemy.Treeview",
-                  background=[("selected", COLOR_ACCENT_DIM)])
+        self._fill_rows(values, columns)
 
-        height = min(len(rows), 12)
-        tree = ttk.Treeview(self.table_frame, columns=columns, show="headings",
-                            height=height, style="Alchemy.Treeview")
-        for col in columns:
-            tree.heading(col, text=col)
-            width = max(90, min(220, 12 * max(len(str(col)), 8)))
-            tree.column(col, width=width, anchor="w")
+    def _fill_rows(self, rows, columns) -> None:
+        """Заполнить таблицу готовыми строками и колонками."""
+        from PySide6.QtWidgets import QHeaderView, QTableWidgetItem
 
-        for row in rows:
-            values = []
-            for col in columns:
-                cell = row.get(col, "")
-                if isinstance(cell, float):
-                    values.append(f"{cell:.6g}")
+        if not rows:
+            self.table.setVisible(False)
+            return
+
+        dicts = isinstance(rows[0], dict)
+        self.table.setColumnCount(len(columns))
+        self.table.setRowCount(len(rows))
+        self.table.setHorizontalHeaderLabels([str(c) for c in columns])
+
+        for r, row in enumerate(rows):
+            values = ([row.get(name, "") for name in columns] if dicts
+                      else list(row))
+            for c, value in enumerate(values):
+                if isinstance(value, float):
+                    text = f"{value:.6g}"
                 else:
-                    values.append(str(cell))
-            tree.insert("", "end", values=values)
+                    text = str(value)
+                self.table.setItem(r, c, QTableWidgetItem(text))
 
-        scrollbar = ttk.Scrollbar(self.table_frame, orient="vertical",
-                                  command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)
-        tree.pack(side="left", fill="both", expand=True)
-        if len(rows) > height:
-            scrollbar.pack(side="right", fill="y")
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
 
-        if len(rows) > 12:
-            ctk.CTkLabel(self.table_frame,
-                         text=f"Показаны первые 12 строк из {len(rows)}",
-                         font=FONT_SMALL, text_color=COLOR_TEXT_DIM).pack(
-                side="bottom", anchor="w")
+        visible_rows = min(len(rows), 12)
+        row_height = self.table.verticalHeader().defaultSectionSize()
+        self.table.setMinimumHeight(visible_rows * row_height + 34)
+        self.table.setVisible(True)
 
-    def _build_series_note(self, result: Result) -> None:
-        self._pack_table()
-        count = len(result.value)
-        x_label = result.meta.get("x_label", "x")
-        y_label = result.meta.get("y_label", "y")
-        ctk.CTkLabel(
-            self.table_frame,
-            text=f"Получен набор из {count} точек: {x_label} — {y_label}.\n"
-                 f"Постройте график на вкладке «Графики», передав эти данные.",
-            font=FONT_SMALL, text_color=COLOR_TEXT_DIM, justify="left",
-            anchor="w", wraplength=680,
-        ).pack(fill="x")
+    def set_latex(self, text: str) -> None:
+        """Задать LaTeX-запись результата и показать кнопку копирования."""
+        self._latex_text = str(text or "").strip()
+        self.latex_button.setVisible(bool(self._latex_text))
+        if self._latex_text:
+            self.latex_button.setToolTip(self._latex_text[:300])
+
+    def _copy_latex(self) -> None:
+        from PySide6.QtWidgets import QApplication
+
+        if not self._latex_text:
+            return
+        QApplication.clipboard().setText(self._latex_text)
+        self.latex_button.setText("LaTeX скопирован ✓")
+
+    def _toggle_details(self) -> None:
+        self._details_open = not self._details_open
+        self.details.setVisible(self._details_open)
+        self.details_button.setText(
+            "▼  Скрыть ход расчёта" if self._details_open
+            else "▶  Показать ход расчёта и допущения")
 
 
 # --------------------------------------------------------------------------
-# Базовая вкладка
+# Основа расчётной вкладки
 # --------------------------------------------------------------------------
 
 
-class BaseTab(ctk.CTkFrame):
-    """Базовый класс расчётной вкладки.
+class BaseTab(QWidget):
+    """Расчётная вкладка. Наследник описывает поля и считает результат."""
 
-    Наследник описывает поля в методе build_inputs и реализует calculate.
-    Всё остальное — прокрутка, кнопки, показ результата, запись в журнал —
-    берёт на себя этот класс.
-    """
-
-    #: заголовок вкладки
     title = "Вкладка"
-    #: краткое описание под заголовком
     description = ""
-    #: подпись кнопки расчёта
     action_label = "Рассчитать"
-    #: имя действия для журнала
     history_action = ""
 
-    def __init__(self, master, controller=None):
-        super().__init__(master, fg_color="transparent")
+    def __init__(self, master=None, controller=None, **kwargs):
+        super().__init__(master)
         self.controller = controller
+        self.fields: dict = {}
 
-        # Прокручиваемая область: на маленьких экранах содержимое не обрежется
-        self.scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll.pack(fill="both", expand=True)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
-        header = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        header.pack(fill="x", padx=4, pady=(0, 10))
-        ctk.CTkLabel(header, text=self.title, font=FONT_TITLE,
-                     text_color=COLOR_TEXT, anchor="w").pack(fill="x")
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        outer.addWidget(self.scroll)
+
+        content = QWidget()
+        content.setObjectName("Page")
+        self.content_layout = QVBoxLayout(content)
+        self.content_layout.setContentsMargins(20, 16, 20, 16)
+        self.content_layout.setSpacing(10)
+        self.scroll.setWidget(content)
+
+        heading = QLabel(self.title)
+        heading.setObjectName("PageTitle")
+        self.content_layout.addWidget(heading)
+
         if self.description:
-            ctk.CTkLabel(header, text=self.description, font=FONT_SMALL,
-                         text_color=COLOR_TEXT_DIM, anchor="w",
-                         justify="left", wraplength=800).pack(fill="x", pady=(2, 0))
+            description = QLabel(self.description)
+            description.setObjectName("PageDesc")
+            description.setWordWrap(True)
+            self.content_layout.addWidget(description)
 
-        self.inputs_card = Card(self.scroll, title="Исходные данные")
-        self.inputs_card.pack(fill="x", padx=2, pady=(0, 10))
-
+        self.inputs_card = Card(title="Исходные данные")
+        self.content_layout.addWidget(self.inputs_card)
         self.build_inputs(self.inputs_card.body)
 
-        buttons = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        buttons.pack(fill="x", padx=2, pady=(0, 10))
+        buttons = QWidget()
+        button_row = QHBoxLayout(buttons)
+        button_row.setContentsMargins(0, 0, 0, 0)
+        button_row.setSpacing(8)
 
-        ctk.CTkButton(buttons, text=self.action_label, width=180, height=36,
-                      font=("Segoe UI", 13, "bold"),
-                      command=self.run).pack(side="left")
-        ctk.CTkButton(buttons, text="Очистить", width=110, height=36,
-                      fg_color="transparent", border_width=1,
-                      border_color=COLOR_BORDER, text_color=COLOR_TEXT_DIM,
-                      command=self.reset).pack(side="left", padx=8)
+        self.action_button = QPushButton(self.action_label)
+        self.action_button.setObjectName("Primary")
+        self.action_button.setFixedWidth(190)
+        self.action_button.setMinimumHeight(34)
+        self.action_button.clicked.connect(self.run)
+        button_row.addWidget(self.action_button)
 
-        self.extra_area = ctk.CTkFrame(self.scroll, fg_color="transparent",
-                                       height=0)
+        self.clear_button = QPushButton("Очистить")
+        self.clear_button.setFixedWidth(110)
+        self.clear_button.setMinimumHeight(34)
+        self.clear_button.clicked.connect(self.reset)
+        button_row.addWidget(self.clear_button)
+        button_row.addStretch(1)
+        self.content_layout.addWidget(buttons)
 
+        self.extra_area = QWidget()
+        extra_layout = QVBoxLayout(self.extra_area)
+        extra_layout.setContentsMargins(0, 0, 0, 0)
+        extra_layout.setSpacing(10)
         self.build_extra(self.extra_area)
+        if extra_layout.count():
+            self.content_layout.addWidget(self.extra_area)
 
-        # Пустой CTkFrame по умолчанию занимает 200 px и оставляет между
-        # кнопками и результатом широкую пустую полосу. Поэтому место под
-        # дополнительные поля показывается, только если они там есть.
-        if self.extra_area.winfo_children():
-            self.extra_area.pack(fill="x", padx=2)
-
-        self.result_view = ResultView(self.scroll)
-        self.result_view.pack(fill="both", expand=True, padx=2, pady=(10, 20))
-
-        # Панель результата растягивается на свободную высоту окна, чтобы
-        # под ней не оставалась пустая половина экрана. Для этого содержимое
-        # прокручиваемой области должно занимать всю её высоту, а не только
-        # высоту по содержимому.
-        self._attach_viewport_fill()
+        self.result_view = ResultView()
+        self.content_layout.addWidget(self.result_view)
+        self.content_layout.addStretch(1)
 
         self.bind_enter()
-
-        # Некоторые вкладки нуждаются в данных, которые появляются только
-        # после создания панели результата
         self.on_ready()
-
-    def _attach_viewport_fill(self) -> None:
-        """Растянуть содержимое вкладки на всю высоту окна.
-
-        По умолчанию прокручиваемая область подстраивается под содержимое,
-        поэтому при короткой форме внизу остаётся пустое место. Обработчик
-        делает внутренний фрейм не ниже области просмотра: содержимое
-        прижимается к верху, а панель результата забирает остаток высоты.
-
-        Используется внутренний механизм CustomTkinter, поэтому любые
-        неожиданности глушатся: без растяжения вкладка просто выглядит
-        как раньше.
-        """
-        canvas = getattr(self.scroll, "_parent_canvas", None)
-        window_id = getattr(self.scroll, "_create_window_id", None)
-        if canvas is None or window_id is None:
-            return
-
-        def fill(event) -> None:
-            try:
-                needed = self.scroll.winfo_reqheight()
-                canvas.itemconfigure(window_id, height=max(needed, event.height))
-            except Exception:
-                pass
-
-        try:
-            canvas.bind("<Configure>", fill, add="+")
-        except Exception:
-            pass
 
     # ---------------- для наследников ----------------
 
     def on_ready(self) -> None:
-        """Вызывается после полной сборки вкладки. Переопределяется при нужде."""
+        """Вызывается после сборки вкладки."""
 
     def build_inputs(self, parent) -> None:
-        """Создать поля ввода. Переопределяется наследником."""
+        """Создать поля ввода."""
 
     def build_extra(self, parent) -> None:
-        """Создать дополнительные блоки под полями. Необязательно."""
+        """Создать дополнительные блоки."""
 
     def calculate(self) -> Result:
-        """Выполнить расчёт. Обязателен для наследника."""
         raise NotImplementedError
 
     def reset(self) -> None:
-        """Очистить поля. Наследник может переопределить."""
         self.clear_widgets(self.inputs_card.body)
         self.result_view.clear()
 
@@ -669,41 +745,45 @@ class BaseTab(ctk.CTkFrame):
 
     def clear_widgets(self, parent) -> None:
         """Очистить все поля ввода внутри контейнера."""
-        for child in parent.winfo_children():
-            if isinstance(child, (ctk.CTkEntry, tk.Entry)):
-                child.delete(0, "end")
-            elif isinstance(child, KeyValueGrid):
+        if isinstance(parent, QLineEdit):
+            parent.clear()
+            return
+        if hasattr(parent, "clear") and isinstance(
+                parent, (LabeledEntry, KeyValueGrid, EditableTable)):
+            parent.clear()
+            return
+        for child in parent.findChildren(QWidget, options=Qt.FindChildrenRecursively):
+            if isinstance(child, QLineEdit):
                 child.clear()
-            elif isinstance(child, LabeledEntry):
-                child.clear()
-            elif isinstance(child, LabeledCombo):
-                pass
-            else:
-                self.clear_widgets(child)
 
     def run(self) -> None:
         """Выполнить расчёт и показать результат."""
-        from ..core.errors import AlchemyError
-
         try:
             result = self.calculate()
         except AlchemyError as exc:
             self.result_view.show_error(str(exc))
             return
         except ZeroDivisionError:
-            self.result_view.show_error("Деление на ноль: проверьте исходные данные")
-            return
-        except Exception as exc:   # неожиданная ошибка — не роняем приложение
             self.result_view.show_error(
-                f"Непредвиденная ошибка ({type(exc).__name__}): {exc}"
-            )
+                "Деление на ноль: проверьте исходные данные")
+            return
+        except Exception as exc:
+            self.result_view.show_error(
+                f"Непредвиденная ошибка ({type(exc).__name__}): {exc}")
             return
 
         self.result_view.show(result)
 
-        # Запись в журнал
-        if self.history_action or self.title:
-            self.log(result)
+        # LaTeX-запись: формула или уравнение, которое ввёл пользователь
+        try:
+            from ..core import report as report_module
+
+            self.result_view.set_latex(
+                report_module.latex_of(result, source=self.latex_source()))
+        except Exception:
+            self.result_view.set_latex("")
+
+        self.log(result)
 
     def log(self, result: Result) -> None:
         """Записать расчёт в журнал операций."""
@@ -715,117 +795,68 @@ class BaseTab(ctk.CTkFrame):
         try:
             logger(self.history_action or self.title, result)
         except Exception:
-            pass   # журнал не должен ломать расчёт
+            pass
+
+    def latex_source(self) -> str:
+        """Уравнение или формула, которую ввёл пользователь.
+
+        Нужна для LaTeX и для отчёта. Вкладки хранят её по-разному:
+        в fields, в отдельном атрибуте или в первой строке таблицы.
+        """
+        keys = ("equation", "formula", "reaction", "substance")
+
+        # 1. Словарь полей текущего режима
+        for key in keys:
+            field = self.fields.get(key)
+            value = _field_text(field)
+            if value:
+                return value
+
+        # 2. Отдельные атрибуты вкладки
+        for name in keys:
+            value = _field_text(getattr(self, name, None))
+            if value:
+                return value
+
+        # 3. Первая строка редактируемой таблицы (анализ формулы)
+        table = getattr(self, "table", None)
+        rows = getattr(table, "rows", None)
+        if callable(rows):
+            try:
+                for row in rows():
+                    for cell in row:
+                        text = str(cell or "").strip()
+                        if text:
+                            return text
+            except Exception:
+                pass
+
+        return ""
 
     def bind_enter(self) -> None:
         """Расчёт по Enter в любом поле ввода."""
-        def handler(event):
-            self.run()
-            return "break"
-
-        self.bind_all_entry(self, handler)
+        for edit in self.findChildren(QLineEdit):
+            if not getattr(edit, "_enter_bound", False):
+                edit.returnPressed.connect(self.run)
+                edit._enter_bound = True
 
     def bind_all_entry(self, widget, handler) -> None:
-        for child in widget.winfo_children():
-            if isinstance(child, (ctk.CTkEntry, tk.Entry)):
-                child.bind("<Return>", handler)
-            else:
-                self.bind_all_entry(child, handler)
+        """Совместимость: подписка на Enter у всех полей."""
+        for edit in widget.findChildren(QLineEdit):
+            edit.returnPressed.connect(lambda: handler(None))
 
     # ---------------- вспомогательные конструкторы ----------------
 
     def info_block(self, parent, text: str, title: str = "") -> None:
-        """Вставить блок пояснений, формул и подсказок."""
-        card = CollapsibleCard(parent, title=title or "Как это считается")
-        card.pack(fill="x", padx=2, pady=(10, 0))
-        ctk.CTkLabel(card.body, text=text, font=FONT_SMALL,
-                     text_color=COLOR_TEXT_DIM, justify="left",
-                     anchor="w", wraplength=780).pack(fill="x")
+        """Блок пояснений под полями."""
+        heading = title or "Как это считается"
+        card = Card(master=parent, title=heading, desc=text)
+        card.pack(fill="x", pady=(6, 0))
 
-    def row(self, parent, *widgets) -> ctk.CTkFrame:
+    def row(self, parent, *widgets):
         """Разместить виджеты в одну строку."""
-        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame = CTkFrame(parent, fg_color=None)
+        for widget in widgets:
+            pack(widget, side="left", padx=(0, 12))
         frame.pack(fill="x", pady=3)
-        for w in widgets:
-            w.pack(side="left", padx=(0, 12))
         return frame
-
-
-# --------------------------------------------------------------------------
-# Вкладка со списком веществ и табличным вводом
-# --------------------------------------------------------------------------
-
-
-class EditableTable(ctk.CTkFrame):
-    """Простая редактируемая таблица «вещество — значение».
-
-    Нужна там, где число участников заранее неизвестно: смеси, наборы
-    опытных точек, список реагентов.
-    """
-
-    def __init__(self, master, columns: list[str] | None = None,
-                 add_label: str = "Добавить строку", **kwargs):
-        super().__init__(master, fg_color="transparent", **kwargs)
-        self.columns = columns or ["Вещество", "Значение"]
-        self._rows: list[list[ctk.CTkEntry]] = []
-
-        self.header = ctk.CTkFrame(self, fg_color="transparent")
-        self.header.pack(fill="x")
-        for col in self.columns:
-            ctk.CTkLabel(self.header, text=col, font=FONT_SMALL,
-                         text_color=COLOR_TEXT_DIM, width=150,
-                         anchor="w").pack(side="left", padx=4)
-
-        self.rows_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.rows_frame.pack(fill="x")
-
-        ctk.CTkButton(self, text=f"+ {add_label}", width=160, height=28,
-                      fg_color="transparent", border_width=1,
-                      border_color=COLOR_BORDER, text_color=COLOR_ACCENT,
-                      font=FONT_SMALL, command=self.add_row).pack(
-            anchor="w", pady=(6, 0))
-
-        self.add_row()
-
-    def add_row(self, values: list[str] | None = None) -> None:
-        row_frame = ctk.CTkFrame(self.rows_frame, fg_color="transparent")
-        row_frame.pack(fill="x", pady=2)
-
-        entries: list[ctk.CTkEntry] = []
-        for i, _ in enumerate(self.columns):
-            entry = ctk.CTkEntry(row_frame, width=150, font=FONT_MONO)
-            entry.pack(side="left", padx=4)
-            if values and i < len(values):
-                entry.insert(0, str(values[i]))
-            entries.append(entry)
-
-        def remove():
-            self._rows.remove(entries)
-            row_frame.destroy()
-
-        ctk.CTkButton(row_frame, text="✕", width=30, height=26,
-                      fg_color="transparent", hover_color=COLOR_ERROR,
-                      text_color=COLOR_TEXT_DIM, font=FONT_SMALL,
-                      command=remove).pack(side="left", padx=4)
-
-        self._rows.append(entries)
-
-    def get_rows(self) -> list[list[str]]:
-        """Все непустые строки."""
-        result = []
-        for entries in self._rows:
-            values = [e.get().strip() for e in entries]
-            if any(values):
-                result.append(values)
-        return result
-
-    def clear(self) -> None:
-        for entries in self._rows:
-            for entry in entries:
-                entry.delete(0, "end")
-
-    def reset(self) -> None:
-        for frame in self.rows_frame.winfo_children():
-            frame.destroy()
-        self._rows.clear()
-        self.add_row()

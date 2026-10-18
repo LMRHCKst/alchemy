@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+import re
 import unittest
 
 # Платформу нужно выбрать до создания QApplication
@@ -19,9 +20,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:
     from PySide6.QtWidgets import QApplication
 
-    from alchemy.ui_qt import bootstrap, theme
-
-    bootstrap.install()
+    from alchemy.ui import theme
     from alchemy.ui_qt.app import ADVANCED_TABS, BASIC_TABS, AlchemyApp
     HAS_QT = True
 except ImportError:      # pragma: no cover
@@ -74,11 +73,12 @@ class TestAppShell(unittest.TestCase):
         self.assertIn("Alchemy", self.window.windowTitle())
 
     def test_all_modules_registered(self):
-        """24 модуля плюс режим Cantera."""
+        """14 основных и 18 дополнительных, включая школьные темы."""
         self.assertEqual(len(self.window._items),
                          len(BASIC_TABS) + len(ADVANCED_TABS))
-        self.assertEqual(len(BASIC_TABS), 12)
-        self.assertEqual(len(ADVANCED_TABS), 13)
+        self.assertEqual(len(BASIC_TABS), 14)
+        self.assertEqual(len(ADVANCED_TABS), 18)
+        self.assertEqual(len(BASIC_TABS) + len(ADVANCED_TABS), 32)
 
     def test_open_every_tab(self):
         for spec in BASIC_TABS + ADVANCED_TABS:
@@ -167,21 +167,24 @@ class TestResultsInTabs(unittest.TestCase):
 class TestCompatLayer(unittest.TestCase):
     """Слой совместимости tkinter → Qt."""
 
-    def test_customtkinter_is_qt(self):
+    def test_no_tkinter_left(self):
+        """tkinter в проекте больше нет."""
+        import pathlib
         import sys
 
-        module = sys.modules["customtkinter"]
-        self.assertTrue(hasattr(module, "CTkLabel"))
-        self.assertTrue(hasattr(module, "CTkEntry"))
+        self.assertNotIn("customtkinter", sys.modules)
 
-    def test_components_is_qt(self):
-        import sys
-
-        module = sys.modules["alchemy.ui.components"]
-        self.assertTrue(module.__name__.endswith("components_tk"))
+        root = pathlib.Path(__file__).resolve().parent.parent / "alchemy"
+        offenders = []
+        for path in root.rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            if re.search(r"^\s*(import|from)\s+(custom)?tkinter\b", text,
+                         re.MULTILINE):
+                offenders.append(path.name)
+        self.assertEqual(offenders, [])
 
     def test_entry_insert_and_get(self):
-        from alchemy.ui_qt.tkcompat import CTkEntry
+        from alchemy.ui.widgets import CTkEntry
 
         entry = CTkEntry()
         entry.insert(0, "abc")
@@ -192,27 +195,27 @@ class TestCompatLayer(unittest.TestCase):
         self.assertEqual(entry.get(), "")
 
     def test_key_value_grid_value(self):
-        from alchemy.ui_qt.components_tk import KeyValueGrid
+        from alchemy.ui.components import KeyValueGrid
 
         grid = KeyValueGrid(fields=[("dt", "Понижение", "0.31")])
         self.assertAlmostEqual(grid.value("dt"), 0.31)
 
     def test_key_value_grid_empty_optional(self):
-        from alchemy.ui_qt.components_tk import KeyValueGrid
+        from alchemy.ui.components import KeyValueGrid
 
         grid = KeyValueGrid(fields=[("x", "Икс", "")])
         self.assertIsNone(grid.value("x", required=False))
 
     def test_key_value_grid_bad_number(self):
         from alchemy.core.errors import InputError
-        from alchemy.ui_qt.components_tk import KeyValueGrid
+        from alchemy.ui.components import KeyValueGrid
 
         grid = KeyValueGrid(fields=[("x", "Икс", "abc")])
         with self.assertRaises(InputError):
             grid.value("x")
 
     def test_checkbox_get_returns_int(self):
-        from alchemy.ui_qt.tkcompat import CTkCheckBox
+        from alchemy.ui.widgets import CTkCheckBox
 
         box = CTkCheckBox()
         self.assertEqual(box.get(), 0)
@@ -225,7 +228,7 @@ class TestResultView(unittest.TestCase):
     """Панель результата."""
 
     def setUp(self):
-        from alchemy.ui_qt.components_tk import ResultView
+        from alchemy.ui.components import ResultView
 
         self.view = ResultView()
 

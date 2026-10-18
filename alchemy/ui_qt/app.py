@@ -1,8 +1,6 @@
 """Главное окно Qt-интерфейса.
 
-Вкладки берутся из общего пакета alchemy.ui: слой совместимости (bootstrap)
-подменяет им tkinter на Qt, поэтому один и тот же код вкладок работает
-в обоих интерфейсах.
+Вкладки берутся из пакета alchemy.ui: там же лежат их компоненты и виджеты.
 """
 
 from __future__ import annotations
@@ -19,21 +17,23 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.results import Result
-from . import bootstrap, theme
+from ..ui import theme
 
-bootstrap.install()
-
-from ..ui.tabs_advanced import (      # noqa: E402  — после bootstrap
+from ..ui.tabs_advanced import (
     ColligativeTab, ElectrolysisTab, EquilibriumTab, GraphsTab, HandbookTab,
     HistoryTab, IndicatorTab, KineticsDataTab, NuclearTab, PracticeTab,
     TitrationTab, UncertaintyTab,
 )
-from ..ui.tabs_basic import (         # noqa: E402
+from ..ui.tabs_basic import (
     AcidBaseTab, BalancerTab, BufferTab, ElectrochemistryTab,
     FormulaAnalysisTab, GasTab, KineticsTab, MolarMassTab, PeriodicTableTab,
     SolutionTab, StoichiometryTab, ThermoTab,
 )
-from .cantera_tab import CanteraTab  # noqa: E402
+from ..ui.tabs_school import (
+    BondingTab, ClassesTab, HardnessTab, OxidationTab, QualitativeTab,
+    RedoxTab, ShiftTab,
+)
+from .cantera_tab import CanteraTab
 
 
 APP_TITLE = "Alchemy — химический калькулятор"
@@ -72,6 +72,10 @@ BASIC_TABS: list[TabSpec] = [
             ElectrochemistryTab, "basic"),
     TabSpec("Таблица Менделеева", "118 элементов со свойствами",
             PeriodicTableTab, "basic"),
+    TabSpec("Степени окисления", "СО, тип реакции, окислитель",
+            OxidationTab, "basic"),
+    TabSpec("Классы и названия", "Класс вещества и номенклатура",
+            ClassesTab, "basic"),
 ]
 
 ADVANCED_TABS: list[TabSpec] = [
@@ -99,6 +103,16 @@ ADVANCED_TABS: list[TabSpec] = [
     TabSpec("Журнал операций", "История расчётов и протокол", HistoryTab,
             "advanced"),
     TabSpec("Проверка расчётов", "Тренажёр с проверкой ответа", PracticeTab,
+            "advanced"),
+    TabSpec("Электронный баланс", "ОВР методом электронного баланса",
+            RedoxTab, "advanced"),
+    TabSpec("Строение вещества", "Тип связи и кристаллическая решётка",
+            BondingTab, "advanced"),
+    TabSpec("Смещение равновесия", "Принцип Ле Шателье", ShiftTab,
+            "advanced"),
+    TabSpec("Жёсткость воды", "Градусы жёсткости и умягчение",
+            HardnessTab, "advanced"),
+    TabSpec("Определитель ионов", "Качественные реакции", QualitativeTab,
             "advanced"),
 ]
 
@@ -273,7 +287,7 @@ class AlchemyApp(QMainWindow):
             self, "О программе",
             f"{APP_TITLE} {APP_VERSION}\n\n"
             f"Проект stffbn4k.\n"
-            f"Диси, инженер-расчётчик.\n\n"
+            f"Диси (DeepSeek AI), инженер-расчётчик.\n\n"
             f"Модулей: {modules}. Расчёты идут локально,\n"
             f"справочники лежат в комплекте.\n\n"
             f"Если ответ расходится с бумагой, это моя ошибка,\n"

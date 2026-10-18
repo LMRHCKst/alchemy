@@ -1,0 +1,39 @@
+{
+  "_source": "Качественные реакции на ионы: школьный курс химии 8–9 класс, аналитическая химия",
+  "_note": "Для каждого иона указан реагент, признак реакции и продукт. Осадки приведены с цветом — это главный признак при распознавании.",
+  "cations": [
+    {"ion": "H+", "reagent": "лакмус", "reagent_formula": "индикатор", "effect": "красный", "product": "—", "note": "универсальный индикатор даёт красный цвет"},
+    {"ion": "H+", "reagent": "метилоранж", "reagent_formula": "индикатор", "effect": "красный", "product": "—", "note": ""},
+    {"ion": "H+", "reagent": "карбонат", "reagent_formula": "Na2CO3", "effect": "выделение газа CO2", "product": "CO2", "note": "вскипание, помутнение известковой воды"},
+    {"ion": "NH4+", "reagent": "щелочь при нагревании", "reagent_formula": "NaOH", "effect": "газ с резким запахом", "product": "NH3", "note": "синяя лакмусовая бумажка синеет"},
+    {"ion": "Na+", "reagent": "пламя", "reagent_formula": "горелка", "effect": "жёлтое окрашивание пламени", "product": "—", "note": ""},
+    {"ion": "K+", "reagent": "пламя", "reagent_formula": "горелка", "effect": "фиолетовое окрашивание пламени", "product": "—", "note": "смотреть через кобальтовое стекло"},
+    {"ion": "Ca2+", "reagent": "пламя", "reagent_formula": "горелка", "effect": "кирпично-красное окрашивание пламени", "product": "—", "note": ""},
+    {"ion": "Ca2+", "reagent": "карбонат", "reagent_formula": "Na2CO3", "effect": "белый осадок", "product": "CaCO3", "note": "растворяется в кислоте с выделением газа"},
+    {"ion": "Ba2+", "reagent": "сульфат", "reagent_formula": "Na2SO4", "effect": "белый осадок", "product": "BaSO4", "note": "не растворяется в кислотах"},
+    {"ion": "Mg2+", "reagent": "щелочь", "reagent_formula": "NaOH", "effect": "белый осадок", "product": "Mg(OH)2", "note": "не растворяется в избытке щёлочи"},
+    {"ion": "Al3+", "reagent": "щелочь", "reagent_formula": "NaOH", "effect": "белый осадок, растворяется в избытке", "product": "Al(OH)3", "note": "амфотерность — отличие от Mg2+"},
+    {"ion": "Zn2+", "reagent": "щелочь", "reagent_formula": "NaOH", "effect": "белый осадок, растворяется в избытке", "product": "Zn(OH)2", "note": "амфотерный гидроксид"},
+    {"ion": "Fe2+", "reagent": "щелочь", "reagent_formula": "NaOH", "effect": "зелёный осадок, буреет на воздухе", "product": "Fe(OH)2", "note": "быстро окисляется до Fe(OH)3"},
+    {"ion": "Fe3+", "reagent": "щелочь", "reagent_formula": "NaOH", "effect": "бурый осадок", "product": "Fe(OH)3", "note": ""},
+    {"ion": "Fe3+", "reagent": "роданид", "reagent_formula": "KSCN", "effect": "кроваво-красный раствор", "product": "Fe(SCN)3", "note": "самая чувствительная проба на железо(III)"},
+    {"ion": "Cu2+", "reagent": "щелочь", "reagent_formula": "NaOH", "effect": "голубой осадок", "product": "Cu(OH)2", "note": "при нагревании чернеет до CuO"},
+    {"ion": "Cu2+", "reagent": "аммиак", "reagent_formula": "NH3", "effect": "синий раствор", "product": "[Cu(NH3)4]2+", "note": "растворение осадка с образованием комплекса"},
+    {"ion": "Ag+", "reagent": "хлорид", "reagent_formula": "NaCl", "effect": "белый творожистый осадок", "product": "AgCl", "note": "растворяется в аммиаке, темнеет на свету"},
+    {"ion": "Pb2+", "reagent": "иодид", "reagent_formula": "KI", "effect": "жёлтый осадок", "product": "PbI2", "note": "растворяется при нагревании, выпадает при охлаждении"}
+  ],
+  "anions": [
+    {"ion": "Cl-", "reagent": "нитрат серебра", "reagent_formula": "AgNO3", "effect": "белый творожистый осадок", "product": "AgCl", "note": "растворяется в NH3"},
+    {"ion": "Br-", "reagent": "нитрат серебра", "reagent_formula": "AgNO3", "effect": "светло-жёлтый осадок", "product": "AgBr", "note": ""},
+    {"ion": "I-", "reagent": "нитрат серебра", "reagent_formula": "AgNO3", "effect": "жёлтый осадок", "product": "AgI", "note": "не растворяется в NH3"},
+    {"ion": "SO4^2-", "reagent": "соль бария", "reagent_formula": "BaCl2", "effect": "белый осадок", "product": "BaSO4", "note": "не растворяется в кислотах"},
+    {"ion": "SO3^2-", "reagent": "кислота", "reagent_formula": "HCl", "effect": "газ с резким запахом", "product": "SO2", "note": "обесцвечивает раствор фуксина"},
+    {"ion": "CO3^2-", "reagent": "кислота", "reagent_formula": "HCl", "effect": "выделение газа CO2", "product": "CO2", "note": "известковая вода мутнеет"},
+    {"ion": "PO4^3-", "reagent": "нитрат серебра", "reagent_formula": "AgNO3", "effect": "жёлтый осадок", "product": "Ag3PO4", "note": "растворяется в азотной кислоте"},
+    {"ion": "SiO3^2-", "reagent": "кислота", "reagent_formula": "HCl", "effect": "студенистый осадок", "product": "H2SiO3", "note": "кремниевая кислота выпадает гелем"},
+    {"ion": "OH-", "reagent": "индикатор", "reagent_formula": "фенолфталеин", "effect": "малиновый", "product": "—", "note": "лакмус синеет"},
+    {"ion": "NO3-", "reagent": "медь с серной кислотой", "reagent_formula": "Cu + H2SO4", "effect": "бурый газ NO2", "product": "NO2", "note": "реакция с концентрированной кислотой при нагревании"},
+    {"ion": "S^2-", "reagent": "соль свинца", "reagent_formula": "Pb(NO3)2", "effect": "чёрный осадок", "product": "PbS", "note": "запах сероводорода"},
+    {"ion": "F-", "reagent": "соль кальция", "reagent_formula": "CaCl2", "effect": "белый осадок", "product": "CaF2", "note": ""}
+  ]
+}
