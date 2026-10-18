@@ -272,6 +272,7 @@ class AlchemyApp(QMainWindow):
         QMessageBox.about(
             self, "О программе",
             f"{APP_TITLE} {APP_VERSION}\n\n"
+            f"Проект stffbn4k.\n"
             f"Диси, инженер-расчётчик.\n\n"
             f"Модулей: {modules}. Расчёты идут локально,\n"
             f"справочники лежат в комплекте.\n\n"
