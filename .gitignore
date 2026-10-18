@@ -1,4 +1,4 @@
-# Служебные файлы Python
+﻿# Служебные файлы Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -52,3 +52,4 @@ docs/promo_tz.md
 docs/known_issues.md
 docs/stress_tests.md
 Оценки от ИИшек/
+docs/кто_ещё_так_делает.md
