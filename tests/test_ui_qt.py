@@ -3,6 +3,9 @@
 
 Окна не открываются: используется offscreen-платформа Qt, поэтому тесты
 идут в обычном прогоне и не мешают работе за компьютером.
+
+Вкладки общие с tkinter-версией: их запускает слой совместимости, поэтому
+здесь проверяется и он тоже.
 """
 
 from __future__ import annotations
@@ -15,11 +18,15 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
     from PySide6.QtWidgets import QApplication
+
+    from alchemy.ui_qt import bootstrap, theme
+
+    bootstrap.install()
+    from alchemy.ui_qt.app import ADVANCED_TABS, BASIC_TABS, AlchemyApp
+    HAS_QT = True
 except ImportError:      # pragma: no cover
     QApplication = None
-
-
-HAS_QT = QApplication is not None
+    HAS_QT = False
 
 _app = None
 
@@ -29,6 +36,7 @@ def setUpModule():
     global _app
     if HAS_QT and _app is None:
         _app = QApplication.instance() or QApplication([])
+        theme.apply_theme(_app)
 
 
 @unittest.skipUnless(HAS_QT, "PySide6 не установлена")
@@ -36,8 +44,6 @@ class TestTheme(unittest.TestCase):
     """Оформление."""
 
     def test_colors_defined(self):
-        from alchemy.ui_qt import theme
-
         for name in ("COLOR_BG", "COLOR_CARD", "COLOR_ACCENT", "COLOR_TEXT"):
             value = getattr(theme, name)
             self.assertTrue(value.startswith("#"))
@@ -45,16 +51,12 @@ class TestTheme(unittest.TestCase):
 
     def test_stylesheet_has_no_widget_background(self):
         """Фон на QWidget дал бы тёмные полосы внутри карточек."""
-        from alchemy.ui_qt import theme
-
         head = theme.STYLESHEET.split("/* ------")[0]
         self.assertNotIn("QWidget {\n    background-color", head)
 
-    def test_font_helper(self):
-        from alchemy.ui_qt import theme
-
-        self.assertTrue(theme.font(10).family())
-        self.assertTrue(theme.font(12, bold=True).bold())
+    def test_menu_styled(self):
+        self.assertIn("QMenuBar", theme.STYLESHEET)
+        self.assertIn("QMenu::item", theme.STYLESHEET)
 
 
 @unittest.skipUnless(HAS_QT, "PySide6 не установлена")
@@ -62,10 +64,6 @@ class TestAppShell(unittest.TestCase):
     """Главное окно."""
 
     def setUp(self):
-        from alchemy.ui_qt import theme
-        from alchemy.ui_qt.app import AlchemyApp
-
-        theme.apply_theme(_app)
         self.window = AlchemyApp()
 
     def tearDown(self):
@@ -75,19 +73,34 @@ class TestAppShell(unittest.TestCase):
     def test_title(self):
         self.assertIn("Alchemy", self.window.windowTitle())
 
-    def test_tabs_registered(self):
-        self.assertGreaterEqual(len(self.window._items), 3)
+    def test_all_modules_registered(self):
+        """24 модуля плюс режим Cantera."""
+        self.assertEqual(len(self.window._items),
+                         len(BASIC_TABS) + len(ADVANCED_TABS))
+        self.assertEqual(len(BASIC_TABS), 12)
+        self.assertEqual(len(ADVANCED_TABS), 13)
 
     def test_open_every_tab(self):
-        from alchemy.ui_qt.app import ADVANCED_TABS, BASIC_TABS
-
         for spec in BASIC_TABS + ADVANCED_TABS:
             self.window.open_tab(spec.cls)
             self.assertIn(spec.cls, self.window._tabs)
 
-    def test_open_same_tab_twice_reuses_widget(self):
-        from alchemy.ui_qt.app import BASIC_TABS
+    def test_every_tab_calculates(self):
+        """Каждая вкладка открывается и считает без падения."""
+        failures = []
+        for spec in BASIC_TABS + ADVANCED_TABS:
+            self.window.open_tab(spec.cls)
+            tab = self.window._tabs.get(spec.cls)
+            if tab is None:
+                failures.append((spec.title, "не открылась"))
+                continue
+            try:
+                tab.run()
+            except Exception as exc:
+                failures.append((spec.title, f"{type(exc).__name__}: {exc}"))
+        self.assertEqual(failures, [])
 
+    def test_open_same_tab_twice_reuses_widget(self):
         spec = BASIC_TABS[0]
         self.window.open_tab(spec.cls)
         first = self.window._tabs[spec.cls]
@@ -95,95 +108,116 @@ class TestAppShell(unittest.TestCase):
         self.assertIs(self.window._tabs[spec.cls], first)
 
     def test_history_grows(self):
-        from alchemy.ui_qt.app import BASIC_TABS
-
         self.window.open_tab(BASIC_TABS[0].cls)
         tab = self.window._tabs[BASIC_TABS[0].cls]
         before = len(self.window.history)
         tab.run()
         self.assertEqual(len(self.window.history), before + 1)
 
+    def test_menu_actions_exist(self):
+        menus = [action.text() for action in self.window.menuBar().actions()]
+        self.assertIn("Файл", menus)
+        self.assertIn("Правка", menus)
+
 
 @unittest.skipUnless(HAS_QT, "PySide6 не установлена")
-class TestMolarMassTab(unittest.TestCase):
-    """Молярная масса в Qt-версии."""
+class TestResultsInTabs(unittest.TestCase):
+    """Расчёты через вкладки дают те же числа, что движки."""
 
     def setUp(self):
-        from alchemy.ui_qt.tabs_basic import MolarMassTab
-
-        self.tab = MolarMassTab()
+        self.window = AlchemyApp()
 
     def tearDown(self):
-        self.tab.deleteLater()
+        self.window.close()
+        self.window.deleteLater()
 
     def test_molar_mass_matches_engine(self):
         from alchemy.core import formula as F
 
-        result = self.tab.calculate()
-        self.assertAlmostEqual(result.numeric(), F.molar_mass("CuSO4*5H2O"),
-                               places=4)
+        self.window.open_tab(BASIC_TABS[0].cls)
+        tab = self.window._tabs[BASIC_TABS[0].cls]
+        tab.run()
+        result = tab.result_view.last_result
+        self.assertAlmostEqual(result.numeric(),
+                               F.molar_mass("CuSO4*5H2O"), places=4)
 
-    def test_charge_notation_understood(self):
-        self.tab.formula.set("MnO4-")
-        result = self.tab.calculate()
-        self.assertAlmostEqual(result.numeric(), 118.936, delta=0.01)
+    def test_result_is_shown_not_raw_dict(self):
+        """Словарь показывается таблицей, а не строкой во весь экран."""
+        from alchemy.core.results import Result
 
-    def test_empty_formula_raises(self):
-        from alchemy.core.errors import AlchemyError
+        self.window.open_tab(BASIC_TABS[0].cls)
+        view = self.window._tabs[BASIC_TABS[0].cls].result_view
+        view.show(Result(value={"масса": 1.0, "объём": 2.0}, label="Словарь"))
+        self.assertTrue(view.table.isVisibleTo(view))
+        self.assertFalse(view.value_label.isVisibleTo(view))
 
-        self.tab.formula.set("")
-        with self.assertRaises(AlchemyError):
-            self.tab.calculate()
+    def test_latex_appears_for_formula_tab(self):
+        self.window.open_tab(BASIC_TABS[0].cls)
+        tab = self.window._tabs[BASIC_TABS[0].cls]
+        tab.run()
+        self.assertIn("mathrm", tab.result_view._latex_text)
 
-    def test_run_fills_result(self):
-        self.tab.run()
-        self.assertIn("г/моль", self.tab.result_view.value_label.text())
-
-    def test_error_shown_not_raised(self):
-        self.tab.formula.set("Xx2O3")
-        self.tab.run()
-        self.assertIn("Ошибка", self.tab.result_view.label.text())
-
-    def test_sample_mass_conversion(self):
-        self.tab.formula.set("H2O")
-        self.tab.sample_mass.set("18.015")
-        result = self.tab.calculate()
-        self.assertIn("моль", result.summary())
+    def test_latex_source_from_field(self):
+        self.window.open_tab(BASIC_TABS[0].cls)
+        tab = self.window._tabs[BASIC_TABS[0].cls]
+        self.assertEqual(tab.latex_source(), "CuSO4*5H2O")
 
 
 @unittest.skipUnless(HAS_QT, "PySide6 не установлена")
-class TestThermoTab(unittest.TestCase):
-    """Термохимия в Qt-версии."""
+class TestCompatLayer(unittest.TestCase):
+    """Слой совместимости tkinter → Qt."""
 
-    def setUp(self):
-        from alchemy.ui_qt.tabs_basic import ThermoTab
+    def test_customtkinter_is_qt(self):
+        import sys
 
-        self.tab = ThermoTab()
+        module = sys.modules["customtkinter"]
+        self.assertTrue(hasattr(module, "CTkLabel"))
+        self.assertTrue(hasattr(module, "CTkEntry"))
 
-    def tearDown(self):
-        self.tab.deleteLater()
+    def test_components_is_qt(self):
+        import sys
 
-    def test_enthalpy(self):
-        result = self.tab.calculate()
-        self.assertAlmostEqual(result.numeric(), 178.3, delta=1.0)
+        module = sys.modules["alchemy.ui.components"]
+        self.assertTrue(module.__name__.endswith("components_tk"))
 
-    def test_mode_switch_adds_temperature_field(self):
-        self.tab.mode.set("При заданной температуре (закон Кирхгофа)")
-        self.assertIn("temperature", self.tab.fields)
+    def test_entry_insert_and_get(self):
+        from alchemy.ui_qt.tkcompat import CTkEntry
 
-    def test_kirchhoff_mode(self):
-        self.tab.mode.set("При заданной температуре (закон Кирхгофа)")
-        self.tab.fields["temperature"].set("1000")
-        result = self.tab.calculate()
-        self.assertIsNotNone(result.numeric())
+        entry = CTkEntry()
+        entry.insert(0, "abc")
+        self.assertEqual(entry.get(), "abc")
+        entry.insert("end", "d")
+        self.assertEqual(entry.get(), "abcd")
+        entry.delete(0, "end")
+        self.assertEqual(entry.get(), "")
 
-    def test_bad_temperature(self):
-        from alchemy.core.errors import AlchemyError
+    def test_key_value_grid_value(self):
+        from alchemy.ui_qt.components_tk import KeyValueGrid
 
-        self.tab.mode.set("При заданной температуре (закон Кирхгофа)")
-        self.tab.fields["temperature"].set("abc")
-        with self.assertRaises(AlchemyError):
-            self.tab.calculate()
+        grid = KeyValueGrid(fields=[("dt", "Понижение", "0.31")])
+        self.assertAlmostEqual(grid.value("dt"), 0.31)
+
+    def test_key_value_grid_empty_optional(self):
+        from alchemy.ui_qt.components_tk import KeyValueGrid
+
+        grid = KeyValueGrid(fields=[("x", "Икс", "")])
+        self.assertIsNone(grid.value("x", required=False))
+
+    def test_key_value_grid_bad_number(self):
+        from alchemy.core.errors import InputError
+        from alchemy.ui_qt.components_tk import KeyValueGrid
+
+        grid = KeyValueGrid(fields=[("x", "Икс", "abc")])
+        with self.assertRaises(InputError):
+            grid.value("x")
+
+    def test_checkbox_get_returns_int(self):
+        from alchemy.ui_qt.tkcompat import CTkCheckBox
+
+        box = CTkCheckBox()
+        self.assertEqual(box.get(), 0)
+        box.select()
+        self.assertEqual(box.get(), 1)
 
 
 @unittest.skipUnless(HAS_QT, "PySide6 не установлена")
@@ -191,7 +225,7 @@ class TestResultView(unittest.TestCase):
     """Панель результата."""
 
     def setUp(self):
-        from alchemy.ui_qt.components import ResultView
+        from alchemy.ui_qt.components_tk import ResultView
 
         self.view = ResultView()
 
@@ -205,7 +239,13 @@ class TestResultView(unittest.TestCase):
     def test_show_error(self):
         self.view.show_error("что-то пошло не так")
         self.assertIn("Ошибка", self.view.label.text())
-        self.assertTrue(self.view.warn_box.isVisibleTo(self.view))
+
+    def test_scalar_shows_value(self):
+        from alchemy.core.results import Result
+
+        self.view.show(Result(value=42.0, unit="г", label="Масса"))
+        self.assertTrue(self.view.value_label.isVisibleTo(self.view))
+        self.assertIn("42", self.view.value_label.text())
 
     def test_table_hides_value_label(self):
         from alchemy.core.results import table_result
@@ -215,12 +255,26 @@ class TestResultView(unittest.TestCase):
         self.assertFalse(self.view.value_label.isVisibleTo(self.view))
         self.assertTrue(self.view.table.isVisibleTo(self.view))
 
-    def test_scalar_shows_value(self):
-        from alchemy.core.results import Result
+    def test_series_rendered_as_table(self):
+        from alchemy.core.results import series_result
 
-        self.view.show(Result(value=42.0, unit="г", label="Масса"))
-        self.assertTrue(self.view.value_label.isVisibleTo(self.view))
-        self.assertIn("42", self.view.value_label.text())
+        result = series_result([(0.0, 1.0), (1.0, 2.0)],
+                               x_label="t", y_label="pH", label="Серия")
+        self.view.show(result)
+        self.assertEqual(self.view.table.rowCount(), 2)
+        self.assertEqual(self.view.table.columnCount(), 2)
+
+    def test_latex_button_hidden_by_default(self):
+        self.assertFalse(self.view.latex_button.isVisibleTo(self.view))
+
+    def test_latex_button_shown_when_set(self):
+        self.view.set_latex(r"\mathrm{H_{2}O}")
+        self.assertTrue(self.view.latex_button.isVisibleTo(self.view))
+
+    def test_clear_resets_latex(self):
+        self.view.set_latex(r"\mathrm{H_{2}O}")
+        self.view.clear()
+        self.assertEqual(self.view._latex_text, "")
 
 
 if __name__ == "__main__":

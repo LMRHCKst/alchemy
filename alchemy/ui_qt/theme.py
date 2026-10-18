@@ -106,7 +106,7 @@ QListWidget#SidebarList {{
 }}
 
 QListWidget#SidebarList::item {{
-    padding: 7px 10px;
+    padding: 5px 10px;
     border-radius: 6px;
     color: {COLOR_TEXT};
 }}
@@ -118,6 +118,48 @@ QListWidget#SidebarList::item:hover {{
 QListWidget#SidebarList::item:selected {{
     background-color: {COLOR_ACCENT_DIM};
     color: #ffffff;
+}}
+
+/* ---------- меню ---------- */
+
+QMenuBar {{
+    background-color: {COLOR_SIDEBAR};
+    color: {COLOR_TEXT};
+    border-bottom: 1px solid {COLOR_BORDER};
+    padding: 2px 6px;
+}}
+
+QMenuBar::item {{
+    background: transparent;
+    padding: 4px 10px;
+    border-radius: 4px;
+}}
+
+QMenuBar::item:selected {{
+    background-color: {COLOR_CARD_ALT};
+}}
+
+QMenu {{
+    background-color: {COLOR_CARD};
+    color: {COLOR_TEXT};
+    border: 1px solid {COLOR_BORDER};
+    padding: 4px;
+}}
+
+QMenu::item {{
+    padding: 6px 22px 6px 16px;
+    border-radius: 4px;
+}}
+
+QMenu::item:selected {{
+    background-color: {COLOR_ACCENT_DIM};
+    color: #ffffff;
+}}
+
+QMenu::separator {{
+    height: 1px;
+    background: {COLOR_BORDER};
+    margin: 4px 8px;
 }}
 
 /* ---------- карточки ---------- */

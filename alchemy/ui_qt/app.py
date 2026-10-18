@@ -1,10 +1,8 @@
 """Главное окно Qt-интерфейса.
 
-Структура та же, что в tkinter-версии: слева меню из двух блоков,
-справа — выбранная вкладка, снизу — строка состояния.
-
-Пока переведены не все вкладки: Qt-версия собирается постепенно, и
-неперенесённые вкладки в меню не показываются, чтобы не путать.
+Вкладки берутся из общего пакета alchemy.ui: слой совместимости (bootstrap)
+подменяет им tkinter на Qt, поэтому один и тот же код вкладок работает
+в обоих интерфейсах.
 """
 
 from __future__ import annotations
@@ -21,9 +19,21 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.results import Result
-from . import theme
-from .tabs_advanced import CanteraTab
-from .tabs_basic import MolarMassTab, ThermoTab
+from . import bootstrap, theme
+
+bootstrap.install()
+
+from ..ui.tabs_advanced import (      # noqa: E402  — после bootstrap
+    ColligativeTab, ElectrolysisTab, EquilibriumTab, GraphsTab, HandbookTab,
+    HistoryTab, IndicatorTab, KineticsDataTab, NuclearTab, PracticeTab,
+    TitrationTab, UncertaintyTab,
+)
+from ..ui.tabs_basic import (         # noqa: E402
+    AcidBaseTab, BalancerTab, BufferTab, ElectrochemistryTab,
+    FormulaAnalysisTab, GasTab, KineticsTab, MolarMassTab, PeriodicTableTab,
+    SolutionTab, StoichiometryTab, ThermoTab,
+)
+from .cantera_tab import CanteraTab  # noqa: E402
 
 
 APP_TITLE = "Alchemy — химический калькулятор"
@@ -42,12 +52,54 @@ class TabSpec:
 
 BASIC_TABS: list[TabSpec] = [
     TabSpec("Молярная масса", "Масса и состав вещества", MolarMassTab, "basic"),
+    TabSpec("Анализ формулы", "Простейшая и молекулярная формула",
+            FormulaAnalysisTab, "basic"),
+    TabSpec("Уравнивание реакций", "Коэффициенты методом Гаусса", BalancerTab,
+            "basic"),
+    TabSpec("Стехиометрия", "Лимитирующий реагент и выход", StoichiometryTab,
+            "basic"),
+    TabSpec("Растворы и концентрации", "C, w, b, X, ppm и рецепты", SolutionTab,
+            "basic"),
+    TabSpec("Кислоты и основания", "pH с учётом активностей", AcidBaseTab,
+            "basic"),
+    TabSpec("Буферные растворы", "pH, ёмкость, приготовление", BufferTab,
+            "basic"),
+    TabSpec("Газовые законы", "Идеальный и реальный газ", GasTab, "basic"),
     TabSpec("Термохимия", "ΔH, ΔS, ΔG, равновесие", ThermoTab, "basic"),
+    TabSpec("Химическая кинетика", "Скорость, Аррениус, порядок", KineticsTab,
+            "basic"),
+    TabSpec("Электрохимия", "Нернст, элементы, электролиз",
+            ElectrochemistryTab, "basic"),
+    TabSpec("Таблица Менделеева", "118 элементов со свойствами",
+            PeriodicTableTab, "basic"),
 ]
 
 ADVANCED_TABS: list[TabSpec] = [
+    TabSpec("Равновесия и активности", "Ионная сила, коэффициенты активности",
+            EquilibriumTab, "advanced"),
+    TabSpec("Кривые титрования", "Из решения равновесий", TitrationTab,
+            "advanced"),
+    TabSpec("Подбор индикатора", "Погрешность титрования", IndicatorTab,
+            "advanced"),
+    TabSpec("Коллигативные свойства", "ΔT кип, ΔT зам, осмос", ColligativeTab,
+            "advanced"),
+    TabSpec("Обработка кинетических данных", "Порядок реакции по точкам",
+            KineticsDataTab, "advanced"),
+    TabSpec("Расчёт электролиза", "Продукты, напряжение, энергия",
+            ElectrolysisTab, "advanced"),
+    TabSpec("Ядерная химия", "Распад, активность, энергия ядра", NuclearTab,
+            "advanced"),
     TabSpec("Газы: равновесие и горение", "Равновесие и горение на Cantera",
             CanteraTab, "advanced"),
+    TabSpec("Погрешности", "Неопределённости и значащие цифры",
+            UncertaintyTab, "advanced"),
+    TabSpec("Справочник веществ", "Все базы данных с источниками",
+            HandbookTab, "advanced"),
+    TabSpec("Графики", "Кривые по реальным расчётам", GraphsTab, "advanced"),
+    TabSpec("Журнал операций", "История расчётов и протокол", HistoryTab,
+            "advanced"),
+    TabSpec("Проверка расчётов", "Тренажёр с проверкой ответа", PracticeTab,
+            "advanced"),
 ]
 
 
@@ -82,17 +134,154 @@ class AlchemyApp(QMainWindow):
         layout.addWidget(right, 1)
         self.setCentralWidget(central)
 
+        self._build_menu()
+
         self.resize(1400, 920)
         self.setMinimumSize(1100, 700)
 
         self.open_tab(BASIC_TABS[0].cls)
+
+    # ---------------- меню и экспорт ----------------
+
+    def _build_menu(self) -> None:
+        """Меню: выгрузка отчёта в DOCX и копирование LaTeX."""
+        bar = self.menuBar()
+
+        file_menu = bar.addMenu("Файл")
+
+        action = file_menu.addAction("Экспорт журнала в DOCX…")
+        action.triggered.connect(self.export_journal_docx)
+
+        action = file_menu.addAction("Экспорт текущего расчёта в DOCX…")
+        action.triggered.connect(self.export_result_docx)
+
+        file_menu.addSeparator()
+        action = file_menu.addAction("Выход")
+        action.triggered.connect(self.close)
+
+        edit_menu = bar.addMenu("Правка")
+        action = edit_menu.addAction("Копировать LaTeX")
+        action.triggered.connect(self.copy_latex)
+
+        help_menu = bar.addMenu("Справка")
+        action = help_menu.addAction("О программе")
+        action.triggered.connect(self._about)
+
+    def current_tab(self):
+        """Вкладка, которая сейчас открыта."""
+        return self.stack.currentWidget()
+
+    def _ask_path(self, title: str) -> str:
+        from PySide6.QtWidgets import QFileDialog
+
+        from ..core import report as report_module
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, title, report_module.suggested_name(), "Документ Word (*.docx)")
+        return path
+
+    def export_journal_docx(self) -> None:
+        """Сохранить журнал операций в DOCX."""
+        from ..core import report as report_module
+
+        if not report_module.available():
+            self._warn(
+                "Для выгрузки в DOCX нужен пакет python-docx.\n"
+                "Установите его:  python -m pip install python-docx")
+            return
+
+        path = self._ask_path("Экспорт журнала в DOCX")
+        if not path:
+            return
+
+        try:
+            report_module.export_journal(path, self.history)
+        except Exception as exc:
+            self._warn(f"Не удалось сохранить: {exc}")
+            return
+
+        self.status_label.setText(f"Журнал сохранён: {path}")
+
+    def export_result_docx(self) -> None:
+        """Сохранить текущий расчёт в DOCX."""
+        from ..core import report as report_module
+
+        if not report_module.available():
+            self._warn(
+                "Для выгрузки в DOCX нужен пакет python-docx.\n"
+                "Установите его:  python -m pip install python-docx")
+            return
+
+        tab = self.current_tab()
+        view = getattr(tab, "result_view", None)
+        result = getattr(view, "last_result", None)
+        if result is None:
+            self._warn("Сначала выполните расчёт на открытой вкладке.")
+            return
+
+        path = self._ask_path("Экспорт расчёта в DOCX")
+        if not path:
+            return
+
+        source = ""
+        if hasattr(tab, "latex_source"):
+            try:
+                source = tab.latex_source()
+            except Exception:
+                source = ""
+
+        try:
+            report_module.export_result(path, result, source=source)
+        except Exception as exc:
+            self._warn(f"Не удалось сохранить: {exc}")
+            return
+
+        self.status_label.setText(f"Расчёт сохранён: {path}")
+
+    def copy_latex(self) -> None:
+        """Скопировать LaTeX текущего результата."""
+        from PySide6.QtWidgets import QApplication
+
+        tab = self.current_tab()
+        view = getattr(tab, "result_view", None)
+        text = getattr(view, "_latex_text", "") if view is not None else ""
+
+        if not text:
+            self._warn("У этого расчёта нет формулы или уравнения для LaTeX.")
+            return
+
+        QApplication.clipboard().setText(text)
+        self.status_label.setText(f"LaTeX скопирован: {text[:60]}")
+
+    def _warn(self, message: str) -> None:
+        self.status_label.setText(message.split("\n")[0][:120])
+        from PySide6.QtWidgets import QMessageBox
+
+        QMessageBox.information(self, "Alchemy", message)
+
+    @staticmethod
+    def _qt_version() -> str:
+        from PySide6 import QtCore
+
+        return QtCore.qVersion()
+
+    def _about(self) -> None:
+        from PySide6.QtWidgets import QMessageBox
+
+        modules = len(BASIC_TABS) + len(ADVANCED_TABS)
+        QMessageBox.about(
+            self, "О программе",
+            f"{APP_TITLE} {APP_VERSION}\n\n"
+            f"Модулей: {modules}. Расчёты выполняются локально,\n"
+            f"справочные данные лежат в комплекте.\n\n"
+            f"Интерфейс: Qt {self._qt_version()}")
 
     # ---------------- построение ----------------
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(280)
+        sidebar.setFixedWidth(300)
 
         column = QVBoxLayout(sidebar)
         column.setContentsMargins(0, 0, 0, 0)
@@ -115,8 +304,9 @@ class AlchemyApp(QMainWindow):
         self._add_group("ОСНОВНЫЕ МОДУЛИ", BASIC_TABS)
         self._add_group("ДОПОЛНИТЕЛЬНЫЕ МОДУЛИ", ADVANCED_TABS)
 
-        footer = QLabel("Все расчёты выполняются локально.\n"
-                        "Источники данных указаны в результатах.")
+        footer = QLabel(f"Всего модулей: "
+                        f"{len(BASIC_TABS) + len(ADVANCED_TABS)}.\n"
+                        f"Расчёты локальные, источники указаны.")
         footer.setObjectName("SidebarSubtitle")
         footer.setWordWrap(True)
         column.addWidget(footer)
@@ -127,10 +317,8 @@ class AlchemyApp(QMainWindow):
         header = QListWidgetItem(title.upper())
         header.setFlags(Qt.NoItemFlags)
         header.setData(Qt.UserRole, None)
-        # Заголовок группы не должен выглядеть как активный пункт меню
         header.setForeground(QColor(theme.COLOR_TEXT_FAINT))
-        header_font = theme.font(theme.FONT_SMALL - 1, bold=True)
-        header.setFont(header_font)
+        header.setFont(theme.font(theme.FONT_SMALL - 1, bold=True))
         header.setSizeHint(QSize(0, 30))
         self.nav.addItem(header)
 
@@ -166,8 +354,7 @@ class AlchemyApp(QMainWindow):
 
     # ---------------- переключение ----------------
 
-    def _on_nav_changed(self, current: QListWidgetItem,
-                        _previous: QListWidgetItem) -> None:
+    def _on_nav_changed(self, current: QListWidgetItem, _previous) -> None:
         if current is None:
             return
         cls = current.data(Qt.UserRole)
@@ -175,16 +362,12 @@ class AlchemyApp(QMainWindow):
             self.open_tab(cls)
 
     def open_tab(self, cls: type) -> None:
-        """Открыть вкладку, создав её при первом обращении.
-
-        Имя отличается от show(), потому что show() у окна Qt — это показ
-        самого окна на экране.
-        """
+        """Открыть вкладку, создав её при первом обращении."""
         widget = self._tabs.get(cls)
         if widget is None:
             try:
                 widget = cls(controller=self)
-            except Exception as exc:   # вкладка не должна ронять окно
+            except Exception as exc:
                 self.status_label.setText(
                     f"Не удалось открыть вкладку {cls.__name__}: "
                     f"{type(exc).__name__}: {exc}")
@@ -217,8 +400,7 @@ class AlchemyApp(QMainWindow):
         if len(self.history) > 500:
             self.history.pop()
 
-        self.status_label.setText(
-            f"{action}: {result.formatted()}"[:120])
+        self.status_label.setText(f"{action}: {result.formatted()}"[:120])
         self._update_count()
 
     def transfer(self, target_cls: type, key: str, value) -> None:

@@ -1677,6 +1677,10 @@ class HistoryTab(BaseTab):
         self.detail_text = ctk.CTkTextbox(self.detail_card.body, height=180,
                                           font=("Consolas", 11),
                                           fg_color="#2b2b2b", wrap="word")
+        # Пустое поле выглядит как провал: подсказываем, что делать
+        self.detail_text.insert(
+            "1.0", "Выберите запись в таблице ниже — здесь появится "
+                  "её результат и ход расчёта.")
         self.detail_text.pack(fill="both", expand=True)
 
     def _get_log(self):

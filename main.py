@@ -1,12 +1,11 @@
 """Точка входа приложения Alchemy.
 
 Запуск:
-    python main.py           обычный интерфейс (tkinter)
-    python main.py --qt      интерфейс на Qt
+    python main.py           интерфейс на Qt (основной)
+    python main.py --tk      прежний интерфейс на tkinter
 
-Интерфейс на Qt собирается параллельно: вкладки переносятся постепенно,
-поэтому по умолчанию пока открывается привычная версия. Когда перенос
-закончится, Qt станет основной.
+Qt — основной интерфейс. Старый оставлен запасным: он работает на тех же
+движках, поэтому расчёты в обоих совпадают.
 
 Программа не устанавливает пакеты самостоятельно: зависимости указываются
 явно, а справочные данные лежат в alchemy/data, поэтому интернет не нужен.
@@ -64,7 +63,10 @@ def install_hint(missing: list[str], qt: bool) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    use_qt = "--qt" in args
+    # Qt — основной интерфейс. Старый на tkinter остаётся как запасной:
+    # --tk запускает его.
+    use_tk = "--tk" in args
+    use_qt = not use_tk
 
     missing = check_dependencies(qt=use_qt)
     if missing:

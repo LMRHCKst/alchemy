@@ -1960,9 +1960,14 @@ class PeriodicTableTab(BaseTab):
 
         legend = ctk.CTkFrame(card.body, fg_color="transparent")
         legend.pack(fill="x", pady=(8, 0))
-        for category, color in sorted(colors.items()):
-            item = ctk.CTkFrame(legend, fg_color="transparent")
-            item.pack(side="left", padx=(0, 10))
+        # Категорий девять, в одну строку они не влезают — раскладываем
+        # по пять, чтобы подписи не обрезались по краю карточки
+        for position, (category, color) in enumerate(sorted(colors.items())):
+            if position % 5 == 0:
+                line = ctk.CTkFrame(legend, fg_color="transparent")
+                line.pack(fill="x", pady=(0, 2))
+            item = ctk.CTkFrame(line, fg_color="transparent")
+            item.pack(side="left", padx=(0, 12))
             ctk.CTkLabel(item, text="■", font=("Segoe UI", 12),
                          text_color=color).pack(side="left")
             ctk.CTkLabel(item, text=f" {category}", font=("Segoe UI", 9),
