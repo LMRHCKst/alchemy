@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Вопрос по химии или по программе
+    url: https://github.com/LMRHCKst/alchemy/discussions
+    about: Не уверен, баг это или нет — спроси здесь, разберёмся
+  - name: Как это работает и что умеет
+    url: https://github.com/LMRHCKst/alchemy#readme
+    about: README, школьная программа, источники данных

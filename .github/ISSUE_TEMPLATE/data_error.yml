@@ -1,0 +1,60 @@
+name: Ошибка в справочных данных
+description: Величина в справочнике расходится с источником
+title: "[данные] "
+labels: ["данные"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Справочники лежат в `alchemy/data/` обычными JSON. Если величина
+        не совпадает с первоисточником — это важнее, чем ошибка в коде,
+        потому что от неё зависят все расчёты сразу.
+
+  - type: input
+    id: substance
+    attributes:
+      label: Вещество или ион
+      placeholder: Cu(OH)2
+    validations:
+      required: true
+
+  - type: input
+    id: file
+    attributes:
+      label: Файл справочника
+      placeholder: thermo.json
+    validations:
+      required: true
+
+  - type: input
+    id: stored
+    attributes:
+      label: Что записано сейчас
+      placeholder: dHf = -450.0 кДж/моль
+    validations:
+      required: true
+
+  - type: input
+    id: correct
+    attributes:
+      label: Какое значение верное
+      placeholder: dHf = -450.4 кДж/моль
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Источник
+      description: Название базы или справочника, год, страница
+      placeholder: NIST JANAF, 1998, таблица Cu(OH)2
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: На что это влияет
+      description: Какие расчёты сдвинутся и насколько
+    validations:
+      required: false

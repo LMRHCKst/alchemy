@@ -1,0 +1,47 @@
+name: Предложение
+description: Чего не хватает или что стоит переделать
+title: "[идея] "
+labels: ["идея"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Предложения принимаются любые, но шанс выше у тех, где сказано,
+        какую задачу человек решает и почему текущий способ плох.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Что неудобно сейчас
+      description: Опиши ситуацию, а не решение
+      placeholder: Считаю жёсткость воды, приходится вручную переводить мг/л в градусы
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Что предлагаешь
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Это про расчёт или про интерфейс
+      options:
+        - Новый расчёт
+        - Существующий расчёт считает не всё
+        - Интерфейс и удобство
+        - Данные и справочники
+        - Документация
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternative
+    attributes:
+      label: Чем пользуешься вместо этого
+      description: Другая программа, таблица, бумага — и чем она лучше
+    validations:
+      required: false

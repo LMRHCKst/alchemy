@@ -1,0 +1,78 @@
+name: Ошибка в расчёте
+description: Программа выдала неверный ответ, отказалась считать или упала
+title: "[ошибка] "
+labels: ["ошибка"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо, что нашёл. Чем точнее напишешь, тем быстрее починю.
+        Если ответ расходится с учебником — укажи учебник, это важно.
+
+  - type: textarea
+    id: input
+    attributes:
+      label: Что было введено
+      description: Формула, уравнение или данные — ровно так, как набрано в программе
+      placeholder: |
+        Модуль: Молярная масса
+        Ввод: CuSO4*5H2O
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Какой ответ ожидался
+      description: И откуда он известен — учебник, задачник, справочник, расчёт на бумаге
+      placeholder: 249.68 г/моль, по задачнику Глинки
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Что выдала программа
+      description: Число, текст отказа или сообщение об ошибке
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build
+    attributes:
+      label: Как запускал
+      options:
+        - Собранный Alchemy.exe
+        - Из исходников, python main.py
+        - Движки без интерфейса, из кода
+    validations:
+      required: true
+
+  - type: input
+    id: module
+    attributes:
+      label: Модуль
+      description: Название вкладки в левом меню, если помнишь
+      placeholder: Термохимия
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Что ещё важно
+      description: Скриншот, текст из журнала расчётов, действия до ошибки
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Проверки
+      options:
+        - label: Я поискал такую же ошибку в списке Issues и не нашёл
+          required: true
+        - label: Я согласен, что ответ может оказаться правильным, а ошибка — в моём ожидании
+          required: true
