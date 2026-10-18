@@ -431,45 +431,71 @@ python tools/build_thermo_polynomials.py --xml путь/к/BURCAT_THR.xml
 
 ## Сборка exe
 
-Собирается Nuitka: она компилирует Python в нативный код, поэтому программа
-стартует за секунду, а не за три-четыре, как после упаковщика байткода.
-Взамен сборка идёт долго: от сорока минут до полутора часов, из которых
-большая часть — компиляция двух с лишним тысяч C-файлов, которые Nuitka
-генерирует из PySide6 и matplotlib.
+Собирается PyInstaller в отдельном чистом окружении. Готовая сборка —
+папка dist\Alchemy весом 257 МБ, внутри Alchemy.exe на 24 МБ.
+Запуск — 0.6 секунды.
 
-Что нужно:
+### Почему PyInstaller, а не Nuitka
 
-```
-python -m pip install nuitka ordered-set zstandard
-```
+Пробовали Nuitka: она компилирует Python в нативный код и даёт самую быструю
+загрузку. На этом проекте она не годится. 
+adioactivedecay тянет за собой
+pandas, scipy и sympy, и Nuitka честно компилирует всё это в C: двадцать
+шесть мегабайт исходника на одну статистику из scipy, которую программа
+не вызывает. Набралось 2622 файла, за час собралось 772, полная оценка —
+около трёх часов.
 
-Компилятор C. Nuitka берёт MSVC из Visual Studio (проверено на VS 18
-Community, MSVC 14.50), отдельно ставить ничего не надо. Если Visual Studio
-нет, Nuitka скачает MinGW сама — это дольше, но тоже работает.
+PyInstaller те же библиотеки просто копирует. Сборка — полторы минуты,
+разница в запуске оказалась не в его пользу настолько, насколько я думала:
+0.6 секунды против примерно секунды у Nuitka. Для папки с файлами это
+нормально, тормозит только --onefile, который распаковывается при каждом
+старте.
 
-Команда:
+### Почему нужен чистый venv
 
-```
-python -m nuitka --standalone ^
-  --enable-plugin=pyside6 ^
-  --include-data-dir=alchemy/data=alchemy/data ^
-  --windows-console-mode=disable ^
-  --output-dir=build ^
-  --assume-yes-for-downloads ^
-  --nofollow-import-to=cantera ^
-  --nofollow-import-to=periodictable ^
-  main.py
-```
+В системном Python стоит много всего. PyInstaller при анализе импортов
+подхватил 	orch, 	ensorflow, yt_dlp, pygame — и сборка вышла на 3 ГБ
+и десять тысяч файлов. Ни одна из этих библиотек программе не нужна.
 
-Готовое лежит в `build\main.dist\main.exe`, рядом папка с библиотеками.
-Запускать нужно именно из этой папки: exe ищет Qt и справочники рядом с собой.
+Поэтому собирать надо из пустого окружения:
 
-Флаг `--include-data-dir` обязателен. Без него программа соберётся и даже
-откроется, но при первом расчёте скажет, что нет справочников: JSON-файлы
-лежат отдельно от кода, и упаковщик про них не знает.
+`
+python -m venv buildenv
+buildenv\Scripts\python.exe -m pip install PySide6-Essentials matplotlib numpy ^
+    uncertainties radioactivedecay python-docx pyinstaller
+`
 
-Размер сборки — около 250 МБ, почти всё это Qt. Один файл вместо папки
-делается флагом `--onefile`, но тогда при каждом запуске архив
-распаковывается во временную папку, и выигрыш в скорости теряется.
+Команда сборки:
 
-Готовая сборка в репозиторий не кладётся: `build/` в `.gitignore`.
+`
+buildenv\Scripts\python.exe -m PyInstaller --noconfirm --name Alchemy --windowed ^
+    --add-data alchemy/data;alchemy/data ^
+    --exclude-module tkinter --exclude-module cantera ^
+    --exclude-module periodictable --exclude-module mendeleev ^
+    --exclude-module pytest ^
+    --distpath dist --workpath build main.py
+`
+
+Готовое лежит в dist\Alchemy\Alchemy.exe. Запускать нужно из этой папки:
+exe ищет Qt и справочники рядом с собой.
+
+### Справочники внутри сборки
+
+Флаг --add-data обязателен. Без него программа соберётся и откроется, но
+при первом расчёте скажет, что нет справочников.
+
+lchemy/data/loader.py умеет работать в упакованной сборке: он проверяет
+sys._MEIPASS, куда PyInstaller распаковывает данные, и ищет JSON там.
+Без этой проверки __file__ указывает в архив, где файлов нет, и программа
+падает на первом же справочнике.
+
+### Что не входит в сборку
+
+cantera и periodictable исключены явно. Первая нужна только для
+отдельного режима равновесия газов, вторая — только для тестов. Если нужен
+режим Cantera, ставьте cantera в venv и убирайте соответствующий
+--exclude-module.
+
+Сборка в репозиторий не кладётся: dist/, uild/ и uildenv/
+в .gitignore.
+

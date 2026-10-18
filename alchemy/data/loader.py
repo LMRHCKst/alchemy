@@ -8,12 +8,32 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from functools import lru_cache
 from typing import Any
 
 from ..core.errors import DataNotFoundError
 
-DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _data_directory() -> str:
+    """Папка со справочниками — с поправкой на упакованную сборку.
+
+    В обычном запуске JSON лежат рядом с этим файлом. В собранном exe
+    PyInstaller распаковывает их во временную папку и кладёт путь в
+    sys._MEIPASS, а у скомпилированных модулей __file__ указывает в
+    архив, где файлов нет. Поэтому сначала проверяем сборку.
+    """
+    frozen_root = getattr(sys, "_MEIPASS", None)
+    if frozen_root:
+        candidate = os.path.join(frozen_root, "alchemy", "data")
+        if os.path.isdir(candidate):
+            return candidate
+        return frozen_root
+
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+DATA_DIR = _data_directory()
 
 
 @lru_cache(maxsize=32)

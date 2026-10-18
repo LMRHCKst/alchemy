@@ -45,3 +45,5 @@ main.dist/
 main.build/
 *.exe
 build_nuitka.log
+buildenv/
+*.spec
