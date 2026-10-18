@@ -395,7 +395,7 @@ organic.json заданы явно, их 40 с лишним.
 
 ## Что нашли ультрасложные тесты
 
-Тесты в 	ests/test_hard.py (38 штук) проверяют инварианты, а не числа.
+Тесты в `tests/test_hard.py` (38 штук) проверяют инварианты, а не числа.
 Два настоящих бага вылезли сразу.
 
 ### Дробные коэффициенты в термохимии (исправлено)
@@ -486,8 +486,7 @@ pH многоосновных, надо разложить pKa по ступен
 нет ложных срабатываний антивируса. Компилятор в системе есть — Visual Studio
 18 Community, MSVC 14.50, отдельно ставить ничего не надо.
 
-Не сложилось. 
-adioactivedecay тянет pandas, scipy и sympy, и Nuitka
+Не сложилось. `radioactivedecay` тянет pandas, scipy и sympy, и Nuitka
 компилирует их в C целиком. В сборке оказалось 2622 C-файла, среди них
 module.scipy.stats._continuous_distns.c на 26 МБ и
 module.sympy.polys.polyquinticconst.c на 16 МБ. За час собралось 772 файла,
@@ -500,7 +499,7 @@ PyInstaller те же библиотеки копирует байткодом, 
 ### Вторая засада: системный Python
 
 Первая попытка PyInstaller дала 3 ГБ и 10 191 файл. Анализ импортов подхватил
-	orch, 	ensorflow, yt_dlp, pygame, websockets, curl_cffi — ничего
+torch, tensorflow, yt_dlp, pygame, websockets, curl_cffi — ничего
 из этого программа не использует, но всё это было установлено в системе,
 и PyInstaller собрал по рантайм-хукам (pyi_rth_tensorflow, pyi_rth_nltk,
 pyi_rth_pythoncom).
@@ -511,7 +510,7 @@ radioactivedecay, python-docx и сам PyInstaller. Сборка — 257 МБ, 
 
 ### Что пришлось поправить в коде
 
-lchemy/data/loader.py вычислял папку справочников от __file__. В упакованной
+`alchemy/data/loader.py` вычислял папку справочников от `__file__`. В упакованной
 сборке __file__ указывает в архив, где JSON нет, и программа падала бы
 на первом же расчёте. Добавил проверку sys._MEIPASS: PyInstaller распаковывает
 данные туда, и путь берётся оттуда.
