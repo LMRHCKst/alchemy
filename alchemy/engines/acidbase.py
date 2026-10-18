@@ -191,7 +191,8 @@ def activity_coefficients_for(concentrations: dict[str, float],
 
 
 def strong_acid_ph(concentration: float, temperature_k: float = 298.15,
-                   ionic_strength_: float | None = None) -> Result:
+                   ionic_strength_: float | None = None,
+                   include_activity: bool = True) -> Result:
     """pH сильной кислоты с учётом активности.
 
     Для концентраций ниже 10⁻⁶ моль/л учитывается диссоциация воды: ответ
@@ -205,9 +206,10 @@ def strong_acid_ph(concentration: float, temperature_k: float = 298.15,
     if ionic_strength_ is None:
         ionic_strength_ = concentration   # для 1:1 электролита I = C
 
-    gamma = activity_coefficient(1.0, ionic_strength_,
-                                 ion_size_nm=ion_size("H^+"),
-                                 temperature_k=temperature_k)
+    gamma = (activity_coefficient(1.0, ionic_strength_,
+                                  ion_size_nm=ion_size("H^+"),
+                                  temperature_k=temperature_k)
+             if include_activity else 1.0)
 
     # Точное решение с учётом воды: [H+]² − C·[H+] − Kw = 0
     Kw = 10.0 ** (-pkw)
@@ -246,7 +248,8 @@ def strong_acid_ph(concentration: float, temperature_k: float = 298.15,
 
 def strong_base_ph(concentration: float, temperature_k: float = 298.15,
                    n_hydroxide: float = 1.0,
-                   ionic_strength_: float | None = None) -> Result:
+                   ionic_strength_: float | None = None,
+                   include_activity: bool = True) -> Result:
     """pH сильного основания с учётом активности.
 
     Args:
@@ -264,9 +267,10 @@ def strong_base_ph(concentration: float, temperature_k: float = 298.15,
     if ionic_strength_ is None:
         ionic_strength_ = c_oh
 
-    gamma = activity_coefficient(1.0, ionic_strength_,
-                                 ion_size_nm=ion_size("OH^-"),
-                                 temperature_k=temperature_k)
+    gamma = (activity_coefficient(1.0, ionic_strength_,
+                                  ion_size_nm=ion_size("OH^-"),
+                                  temperature_k=temperature_k)
+             if include_activity else 1.0)
 
     Kw = 10.0 ** (-pkw)
     oh = (c_oh + math.sqrt(c_oh ** 2 + 4 * Kw)) / 2.0
@@ -299,7 +303,8 @@ def strong_base_ph(concentration: float, temperature_k: float = 298.15,
 
 def weak_acid_ph(concentration: float, ka: float,
                  temperature_k: float = 298.15,
-                 ionic_strength_: float | None = None) -> Result:
+                 ionic_strength_: float | None = None,
+                 include_activity: bool = True) -> Result:
     """pH слабой кислоты: решение квадратного уравнения с учётом активности.
 
     Уравнение: [H⁺]² + Ka·[H⁺] − Ka·C = 0, решается точно, без приближения
@@ -313,7 +318,9 @@ def weak_acid_ph(concentration: float, ka: float,
     if ionic_strength_ is None:
         ionic_strength_ = 0.5 * concentration
 
-    gamma = activity_coefficient(1.0, ionic_strength_, temperature_k=temperature_k)
+    gamma = (activity_coefficient(1.0, ionic_strength_,
+                                  temperature_k=temperature_k)
+             if include_activity else 1.0)
 
     # Ka — термодинамическая; для концентраций используем Ka/γ² (γ(H+)=γ(A-))
     ka_conc = ka / (gamma ** 2)
@@ -654,13 +661,15 @@ def ph_of_acid(acid_query: str, concentration: float,
         pka_at_t = [extra[0]] if extra else [acid.pKa_at(temperature_k)]
 
     if acid.is_strong:
-        res = strong_acid_ph(concentration, temperature_k)
+        res = strong_acid_ph(concentration, temperature_k,
+                             include_activity=include_activity)
         res.label = f"pH раствора {acid.name.lower()}"
         res.with_step(f"Кислота {acid.formula} — сильная, диссоциирует полностью")
         return res
 
     ka = 10.0 ** (-pka_at_t[0])
-    res = weak_acid_ph(concentration, ka, temperature_k)
+    res = weak_acid_ph(concentration, ka, temperature_k,
+                       include_activity=include_activity)
 
     res.label = f"pH раствора {acid.name.lower()}"
     res.method = "Равновесие слабой кислоты с учётом активности"
@@ -738,7 +747,8 @@ def ph_of_base(base_query: str, concentration: float,
 
     if base.is_strong:
         res = strong_base_ph(concentration, temperature_k,
-                             n_hydroxide=max(1, base.OH))
+                             n_hydroxide=max(1, base.OH),
+                             include_activity=include_activity)
         res.label = f"pH раствора {base.name.lower()}"
         res.with_step(f"Основание {base.formula} — сильное")
         if base.OH > 1:

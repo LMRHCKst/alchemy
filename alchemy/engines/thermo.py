@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import re
+
 import math
 from dataclasses import dataclass
 
@@ -44,14 +46,14 @@ class Participant:
     """Вещество реакции с коэффициентом и знаком."""
 
     text: str                 # как записано в уравнении
-    fraction: int             # коэффициент
+    fraction: float           # коэффициент
     sign: int                 # +1 для продуктов, −1 для реагентов
     substance: TDB.Substance | None
     ion: TDB.Ion | None
     body: str                 # формула без обозначения состояния
 
     @property
-    def nu(self) -> int:
+    def nu(self) -> float:
         """Стехиометрическое число: положительное у продуктов."""
         return self.fraction * self.sign
 
@@ -63,7 +65,11 @@ class Participant:
 
     @property
     def display(self) -> str:
-        return f"{self.fraction}{self.text}" if self.fraction != 1 else self.text
+        if self.fraction == 1:
+            return self.text
+        if abs(self.fraction - round(self.fraction)) < 1e-9:
+            return f"{int(round(self.fraction))}{self.text}"
+        return f"{self.fraction:g}{self.text}"
 
     def data(self) -> tuple[float | None, float | None, float | None]:
         """(ΔH°f, ΔG°f, S°) для вещества или иона."""
@@ -74,21 +80,93 @@ class Participant:
         return (None, None, None)
 
 
+def _written_coefficients(equation: str) -> dict[str, float]:
+    """Коэффициенты, которые пользователь написал руками.
+
+    Возвращает формула → коэффициент. Пусто, если коэффициентов нет.
+    """
+    written: dict[str, float] = {}
+    for side in str(equation).replace("→", "=").replace("->", "=").split("="):
+        for term in side.split("+"):
+            text = term.strip()
+            if not text:
+                continue
+            match = re.match(r"^(\d+(?:\.\d+)?)\s*(\S.*)$", text)
+            if match:
+                written[match.group(2).strip()] = float(match.group(1))
+    return written
+
+
+def _equation_note(equation: str) -> str | None:
+    """Пояснение, к какой записи относится тепловой эффект."""
+    try:
+        balanced_text = balance(equation).value
+        balanced = balance(equation)
+        scale = _user_scale(equation, balanced.meta["left"], balanced.meta["right"])
+    except Exception:
+        return None
+
+    written = _written_coefficients(equation)
+    if not written:
+        return (f"Уравнение было уравнено: {balanced_text}. "
+                f"Тепловой эффект относится к этой записи.")
+    if abs(scale - 1.0) > 1e-9:
+        return (f"Коэффициенты приведены к вашей записи, множитель {scale:g}. "
+                f"Уравненный вид: {balanced_text}")
+    return None
+
+
+def _user_scale(equation: str, left: dict, right: dict) -> float:
+    """Во сколько раз уравнение пользователя отличается от уравненного.
+
+    Если человек написал «H2 + 0.5O2 = H2O», балансировщик приведёт это
+    к «2H2 + O2 = 2H2O». Тепловой эффект относится ко всей записи, поэтому
+    ответ надо уменьшить в два раза, иначе он врёт вдвое.
+
+    Если коэффициентов не написано, масштаб 1: расчёт идёт по уравненному
+    уравнению, и это ожидаемо.
+    """
+    written = _written_coefficients(equation)
+    if not written:
+        return 1.0
+
+    scales = []
+    for text, coefficient in written.items():
+        balanced = left.get(text, right.get(text))
+        if balanced:
+            scales.append(coefficient / balanced)
+
+    if not scales:
+        return 1.0
+
+    first = scales[0]
+    # Если отношения расходятся, доверять нечему: считаем по целым
+    if any(abs(scale - first) > 1e-6 for scale in scales):
+        return 1.0
+    return first
+
+
 def participants(equation: str) -> list[Participant]:
-    """Разобрать уравненную реакцию в список участников со стехиометрией."""
+    """Разобрать уравненную реакцию в список участников со стехиометрией.
+
+    Коэффициенты приводятся к той записи, которую ввёл пользователь:
+    дробные коэффициенты сохраняются, а не раздуваются до целых.
+    """
     bal = balance(equation)
     left: dict[str, int] = bal.meta["left"]
     right: dict[str, int] = bal.meta["right"]
 
+    scale = _user_scale(equation, left, right)
+
     result: list[Participant] = []
     for text, c in left.items():
-        result.append(_make_participant(text, c, -1))
+        result.append(_make_participant(text, c * scale, -1))
     for text, c in right.items():
-        result.append(_make_participant(text, c, +1))
+        result.append(_make_participant(text, c * scale, +1))
     return result
 
 
-def _make_participant(text: str, coeff: int, sign: int) -> Participant:
+def _make_participant(text: str, coeff: float, sign: int) -> Participant:
     body, state = split_state(text)
 
     substance = TDB.maybe(body, state)
@@ -158,9 +236,10 @@ def reaction_enthalpy(equation: str) -> Result:
         contribution = p.nu * dHf
         total += contribution
         steps.append(
-            f"{p.display}: ν = {p.nu:+d}, ΔH°f = {dHf:+.2f} → вклад {contribution:+.2f} кДж"
+            f"{p.display}: ν = {p.nu:+g}, ΔH°f = {dHf:+.2f} → вклад {contribution:+.2f} кДж"
         )
 
+    note = _equation_note(equation)
     result = Result(
         value=total,
         unit="кДж/моль",
@@ -170,6 +249,8 @@ def reaction_enthalpy(equation: str) -> Result:
     for s in steps:
         result.with_step(s)
     result.with_step(f"Итого ΔH° = {total:+.2f} кДж/моль")
+    if note:
+        result.with_step(note)
 
     if total < 0:
         result.with_meta("thermal_effect", "экзотермическая")
@@ -206,7 +287,7 @@ def reaction_entropy(equation: str) -> Result:
     )
     for p in parts:
         res.with_step(
-            f"{p.display}: ν = {p.nu:+d}, S° = {p.data()[2]:.2f} → вклад "
+            f"{p.display}: ν = {p.nu:+g}, S° = {p.data()[2]:.2f} → вклад "
             f"{p.nu * p.data()[2]:+.2f} Дж/(моль·К)"
         )
     res.with_step(f"Итого ΔS° = {total:+.2f} Дж/(моль·К)")
