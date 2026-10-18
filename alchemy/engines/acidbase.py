@@ -660,19 +660,38 @@ def ph_of_acid(acid_query: str, concentration: float,
         extra = _related_pka(acid.formula, acid.protons)
         pka_at_t = [extra[0]] if extra else [acid.pKa_at(temperature_k)]
 
-    if acid.is_strong:
+    # «Сильная» в справочнике — это ярлык. Диссоциирует полностью только
+    # та, у которой pKa заметно ниже нуля. У трихлоруксусной pKa 0.66,
+    # у селеновой 1.7: при 0.1 М это уже не полная диссоциация, и считать
+    # их по формуле сильной кислоты значит ошибаться на пол-единицы pH.
+    # У многоосновных кислот в справочнике может лежать вторая константа,
+    # а не первая: у селеновой pKa1 около -3, а хранится 1.7. Поэтому
+    # по pKa считаем только одноосновные, остальные — как раньше.
+    fully_dissociated = acid.is_strong and (
+        acid.protons > 1 or acid.pKa < -1.0)
+
+    if fully_dissociated:
         res = strong_acid_ph(concentration, temperature_k,
                              include_activity=include_activity)
         res.label = f"pH раствора {acid.name.lower()}"
         res.with_step(f"Кислота {acid.formula} — сильная, диссоциирует полностью")
         return res
 
+    if acid.is_strong:
+        pass  # считается по Ka, предупреждение добавим ниже
+
     ka = 10.0 ** (-pka_at_t[0])
     res = weak_acid_ph(concentration, ka, temperature_k,
                        include_activity=include_activity)
 
     res.label = f"pH раствора {acid.name.lower()}"
-    res.method = "Равновесие слабой кислоты с учётом активности"
+    res.method = "Равновесие кислоты с учётом активности"
+
+    if acid.is_strong:
+        res.with_warning(
+            f"В справочнике {acid.formula} помечена как сильная, но её "
+            f"pKa = {acid.pKa:.2f}, то есть диссоциация неполная. "
+            f"Расчёт идёт по константе, а не по формуле сильной кислоты.")
     res.with_step(f"Кислота: {acid.name} ({acid.formula})")
     if acid.has_temperature_data and temperature_k != 298.15:
         res.with_step(
