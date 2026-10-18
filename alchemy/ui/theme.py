@@ -86,6 +86,21 @@ QScrollArea, #Page {{
     padding: 18px 16px 2px 16px;
 }}
 
+/* Значок бета — по образцу яндексовых пометок: маленькая скруглённая
+   плашка фирменного красного, строчными буквами, рядом с названием. */
+/* Пометка беты — тихая: без заливки, тонкая рамка и приглушённая буква.
+   Она не должна спорить с названием, только сообщать статус. */
+#BetaBadge {{
+    background-color: transparent;
+    color: #9a9a9a;
+    border: 1px solid #4a4a4a;
+    border-radius: 6px;
+    font-size: 10pt;
+    padding: 0px 6px 1px 6px;
+    min-width: 19px;
+    min-height: 19px;
+}}
+
 #SidebarSubtitle {{
     color: {COLOR_TEXT_FAINT};
     font-size: {FONT_SMALL}pt;

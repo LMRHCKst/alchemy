@@ -39,3 +39,9 @@ Desktop.ini
 /_*.txt
 /_shots/
 /_shots_qt/
+# Сборка exe (готовая сборка в репозиторий не кладётся)
+build/
+main.dist/
+main.build/
+*.exe
+build_nuitka.log

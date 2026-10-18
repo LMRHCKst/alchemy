@@ -40,7 +40,14 @@ from .cantera_tab import CanteraTab
 
 
 APP_TITLE = "Alchemy — химический калькулятор"
-APP_VERSION = "3.0"
+
+#: Подпись сборки вместо номера версии. Номер появится, когда будет что
+#: нумеровать: сейчас это рабочая сборка, а не релиз.
+APP_LABEL = "нестабильная сборка"
+
+#: Значок беты — греческая буква, как в сервисах Яндекса
+BETA_TEXT = "β"
+BETA_TOOLTIP = "бета: нестабильная сборка"
 
 
 @dataclass
@@ -136,7 +143,7 @@ class AlchemyApp(QMainWindow):
         self._tabs: dict[type, QWidget] = {}
         self._items: dict[type, QListWidgetItem] = {}
 
-        self.setWindowTitle(f"{APP_TITLE} {APP_VERSION}")
+        self.setWindowTitle(f"{APP_TITLE} ({BETA_TEXT})")
 
         central = QWidget()
         layout = QHBoxLayout(central)
@@ -294,7 +301,9 @@ class AlchemyApp(QMainWindow):
         modules = len(BASIC_TABS) + len(ADVANCED_TABS)
         QMessageBox.about(
             self, "О программе",
-            f"{APP_TITLE} {APP_VERSION}\n\n"
+            f"{APP_TITLE}\n"
+            f"Значок «{BETA_TEXT}» значит: {APP_LABEL}.\n"
+            f"Модули есть, числа сходятся, но часть поведения ещё меняется.\n\n"
             f"Проект stffbn4k.\n"
             f"Диси (DeepSeek AI), инженер-расчётчик.\n\n"
             f"Модулей: {modules}. Расчёты идут локально,\n"
@@ -314,11 +323,28 @@ class AlchemyApp(QMainWindow):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
 
+        # Заголовок и значок беты в одну строку. Значок сделан по образцу
+        # яндексовых пометок: маленькая скруглённая плашка фирменного
+        # красного, строчными буквами, рядом с названием.
+        title_row = QWidget()
+        title_layout = QHBoxLayout(title_row)
+        title_layout.setContentsMargins(16, 18, 16, 0)
+        title_layout.setSpacing(8)
+
         title = QLabel("ALCHEMY")
         title.setObjectName("SidebarTitle")
-        column.addWidget(title)
+        title_layout.addWidget(title)
 
-        subtitle = QLabel(f"химический калькулятор {APP_VERSION}")
+        badge = QLabel(BETA_TEXT)
+        badge.setObjectName("BetaBadge")
+        badge.setAlignment(Qt.AlignCenter)
+        badge.setToolTip(BETA_TOOLTIP)
+        title_layout.addWidget(badge, 0, Qt.AlignVCenter)
+
+        title_layout.addStretch(1)
+        column.addWidget(title_row)
+
+        subtitle = QLabel("химический калькулятор")
         subtitle.setObjectName("SidebarSubtitle")
         column.addWidget(subtitle)
 

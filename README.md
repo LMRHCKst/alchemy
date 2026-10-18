@@ -428,3 +428,48 @@ python tools/build_thermo_polynomials.py
 ```
 python tools/build_thermo_polynomials.py --xml путь/к/BURCAT_THR.xml
 ```
+
+## Сборка exe
+
+Собирается Nuitka: она компилирует Python в нативный код, поэтому программа
+стартует за секунду, а не за три-четыре, как после упаковщика байткода.
+Взамен сборка идёт долго: от сорока минут до полутора часов, из которых
+большая часть — компиляция двух с лишним тысяч C-файлов, которые Nuitka
+генерирует из PySide6 и matplotlib.
+
+Что нужно:
+
+```
+python -m pip install nuitka ordered-set zstandard
+```
+
+Компилятор C. Nuitka берёт MSVC из Visual Studio (проверено на VS 18
+Community, MSVC 14.50), отдельно ставить ничего не надо. Если Visual Studio
+нет, Nuitka скачает MinGW сама — это дольше, но тоже работает.
+
+Команда:
+
+```
+python -m nuitka --standalone ^
+  --enable-plugin=pyside6 ^
+  --include-data-dir=alchemy/data=alchemy/data ^
+  --windows-console-mode=disable ^
+  --output-dir=build ^
+  --assume-yes-for-downloads ^
+  --nofollow-import-to=cantera ^
+  --nofollow-import-to=periodictable ^
+  main.py
+```
+
+Готовое лежит в `build\main.dist\main.exe`, рядом папка с библиотеками.
+Запускать нужно именно из этой папки: exe ищет Qt и справочники рядом с собой.
+
+Флаг `--include-data-dir` обязателен. Без него программа соберётся и даже
+откроется, но при первом расчёте скажет, что нет справочников: JSON-файлы
+лежат отдельно от кода, и упаковщик про них не знает.
+
+Размер сборки — около 250 МБ, почти всё это Qt. Один файл вместо папки
+делается флагом `--onefile`, но тогда при каждом запуске архив
+распаковывается во временную папку, и выигрыш в скорости теряется.
+
+Готовая сборка в репозиторий не кладётся: `build/` в `.gitignore`.
