@@ -10,7 +10,7 @@ import sys
 from dataclasses import dataclass
 
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
     QMainWindow, QStackedWidget, QVBoxLayout, QWidget,
@@ -362,7 +362,7 @@ class AlchemyApp(QMainWindow):
         column.addWidget(self.nav, 1)
 
         # ИИ-чат стоит первым: это вход, а не ещё один модуль
-        self._add_group("ИИ-ЧАТ", CHAT_TABS)
+        self._add_group("ИИ-ЧАТ", CHAT_TABS, first=True)
         self._add_group("ОСНОВНЫЕ МОДУЛИ", BASIC_TABS)
         self._add_group("ДОПОЛНИТЕЛЬНЫЕ МОДУЛИ", ADVANCED_TABS)
 
@@ -372,17 +372,42 @@ class AlchemyApp(QMainWindow):
                         f"Расчёты локальные, источники указаны.")
         footer.setObjectName("SidebarSubtitle")
         footer.setWordWrap(True)
+        column.addSpacing(6)
         column.addWidget(footer)
 
         return sidebar
 
-    def _add_group(self, title: str, specs: list[TabSpec]) -> None:
+    def _add_group(self, title: str, specs: list[TabSpec],
+                   *, first: bool = False) -> None:
+        """Добавить раздел меню.
+
+        Разделы должны читаться как разделы, а не как ещё одна строка
+        списка: перед каждым, кроме первого, идёт отступ, а заголовок
+        набран мельче, с разрядкой и отделён линией.
+        """
+        if not first:
+            line = QListWidgetItem("")
+            line.setFlags(Qt.NoItemFlags)
+            line.setData(Qt.UserRole, None)
+            line.setSizeHint(QSize(0, 1))
+            line.setBackground(QColor(theme.COLOR_BORDER))
+            self.nav.addItem(line)
+
+            gap = QListWidgetItem("")
+            gap.setFlags(Qt.ItemIsEnabled)
+            gap.setData(Qt.UserRole, None)
+            gap.setSizeHint(QSize(0, 10))
+            self.nav.addItem(gap)
+
         header = QListWidgetItem(title.upper())
-        header.setFlags(Qt.NoItemFlags)
+        header.setFlags(Qt.ItemIsEnabled)
         header.setData(Qt.UserRole, None)
         header.setForeground(QColor(theme.COLOR_TEXT_FAINT))
-        header.setFont(theme.font(theme.FONT_SMALL - 1, bold=True))
-        header.setSizeHint(QSize(0, 30))
+        header_font = theme.font(theme.FONT_SMALL - 2, bold=True)
+        header_font.setLetterSpacing(QFont.AbsoluteSpacing, 2.0)
+        header.setFont(header_font)
+        header.setSizeHint(QSize(0, 28))
+        header.setBackground(QColor(theme.COLOR_SIDEBAR))
         self.nav.addItem(header)
 
         for spec in specs:

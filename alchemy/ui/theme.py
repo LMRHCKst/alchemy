@@ -104,7 +104,8 @@ QScrollArea, #Page {{
 #SidebarSubtitle {{
     color: {COLOR_TEXT_FAINT};
     font-size: {FONT_SMALL}pt;
-    padding: 0 16px 14px 16px;
+    padding: 10px 16px 14px 16px;
+    border-top: 1px solid {COLOR_BORDER};
 }}
 
 #SidebarGroup {{
@@ -117,13 +118,13 @@ QListWidget#SidebarList {{
     background-color: {COLOR_SIDEBAR};
     border: none;
     outline: none;
-    padding: 0 8px;
+    padding: 0 8px 10px 8px;
 }}
 
 QListWidget#SidebarList::item {{
-    padding: 5px 10px;
+    padding: 6px 10px;
+    margin: 1px 0px;
     border-radius: 6px;
-    color: {COLOR_TEXT};
 }}
 
 QListWidget#SidebarList::item:hover {{
@@ -133,6 +134,8 @@ QListWidget#SidebarList::item:hover {{
 QListWidget#SidebarList::item:selected {{
     background-color: {COLOR_ACCENT_DIM};
     color: #ffffff;
+    border-left: 3px solid {COLOR_ACCENT};
+    padding-left: 7px;
 }}
 
 /* ---------- меню ---------- */
