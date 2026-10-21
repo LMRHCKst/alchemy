@@ -176,3 +176,33 @@ class ChatClient:
             model=str(blob.get("model") or self.settings.model),
             usage=blob.get("usage") or {},
         )
+
+    def list_models(self) -> list[str]:
+        """Каталог моделей провайдера — для проверки связи и подсказки.
+
+        Не все OpenAI-совместимые серверы отдают этот список: у некоторых
+        путь закрыт или требует другого ключа. Отсутствие списка не значит,
+        что работать нельзя, поэтому ошибка здесь не поднимается.
+        """
+        request = urllib.request.Request(
+            f"{self.settings.api_base}/models",
+            headers=self._headers(),
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                blob = json.loads(response.read().decode("utf-8", "replace"))
+        except Exception as exc:
+            raise AiError(f"каталог моделей недоступен: {exc}") from None
+
+        items = blob.get("data") if isinstance(blob, dict) else None
+        if not isinstance(items, list):
+            raise AiError("провайдер ответил, но список моделей не в том формате")
+
+        names = []
+        for item in items:
+            if isinstance(item, dict):
+                identifier = item.get("id") or item.get("name")
+                if identifier:
+                    names.append(str(identifier))
+        return sorted(names)

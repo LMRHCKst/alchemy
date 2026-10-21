@@ -10,15 +10,17 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
+    QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
     QScrollArea, QTextBrowser, QVBoxLayout, QWidget,
 )
 
+from ..ai import settings_store
 from ..ai.agent import Agent, Answer
-from ..ai.client import AiError, ChatClient, load_settings
+from ..ai.client import AiError, ChatClient
 from ..ai.tools import REGISTRY
 from ..ui.components import Card
 from ..ui.widgets import CTkLabel
+from .ai_settings import AiSettingsDialog
 
 EXAMPLE = ("Например: «Какая молярная масса медного купороса?» "
            "или «Уравняй KMnO4 + HCl = KCl + MnCl2 + Cl2 + H2O»")
@@ -64,6 +66,7 @@ class AiTab(QWidget):
         self._history: list[dict] = []
         self._answer: Answer | None = None
         self._setup_error = ""
+        self._origin = ""
 
         self._build()
 
@@ -96,13 +99,7 @@ class AiTab(QWidget):
         column.addWidget(description)
 
         # --- проверка доступа к модели ---
-        try:
-            settings = load_settings()
-            self._agent = Agent(ChatClient(settings))
-            self._model_line = settings.source
-        except AiError as exc:
-            self._setup_error = str(exc)
-            self._model_line = ""
+        self._init_agent()
 
         if self._setup_error:
             self._build_unavailable(column)
@@ -110,24 +107,56 @@ class AiTab(QWidget):
             self._build_question(column)
             self._build_answer(column)
             self._build_trace(column)
-            self._status = QLabel(f"Модель: {self._model_line}")
+            self._status = QLabel(self._status_text())
             self._status.setObjectName("PageDesc")
             column.addWidget(self._status)
 
         column.addStretch(1)
 
+    def _init_agent(self) -> None:
+        """Собрать агента по текущим настройкам.
+
+        Ключ подтягивается сам: сначала из профиля, потом из настроек чата
+        Диси — и при первом запуске переносится в профиль, чтобы больше
+        не искать его руками.
+        """
+        self._agent = None
+        self._model_line = ""
+        self._origin = ""
+        self._setup_error = ""
+        try:
+            settings, origin = settings_store.ensure_ready()
+            self._agent = Agent(ChatClient(settings))
+            self._model_line = settings.source
+            self._origin = origin
+        except AiError as exc:
+            self._setup_error = str(exc)
+
+    def _status_text(self) -> str:
+        """Строка состояния: модель и откуда взялись настройки."""
+        base = f"Модель: {self._model_line}"
+        if self._origin:
+            base += f" · {self._origin}"
+        return base
+
     def _build_unavailable(self, column: QVBoxLayout) -> None:
-        card = Card(title="Модель недоступна")
+        card = Card(title="Модель не настроена")
         label = CTkLabel(
             card.body,
-            text="Вкладка работает через облачную модель, но ключ не найден.\n\n"
+            text="Вкладка работает через модель, но доступа к ней нет.\n\n"
                  f"Причина: {self._setup_error}\n\n"
-                 "Ключ берётся из настроек чата Диси (disi-chat/config.json) "
-                 "или из файла, указанного в переменной окружения "
-                 "ALCHEMY_AI_CONFIG. Без ключа остальные вкладки работают "
-                 "как обычно.",
+                 "Нажмите «Настройки модели» и укажите адрес, ключ и модель. "
+                 "Подойдёт любой сервис с OpenAI-совместимым API. "
+                 "Ключ сохраняется в профиль пользователя, в репозиторий "
+                 "он не попадает. Остальные вкладки работают без модели.",
             font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w")
         label.pack(fill="x")
+
+        open_button = QPushButton("Настройки модели")
+        open_button.setMinimumHeight(34)
+        open_button.clicked.connect(self._open_settings)
+        card.body.layout().addWidget(open_button)
+
         column.addWidget(card)
 
     def _build_question(self, column: QVBoxLayout) -> None:
@@ -166,6 +195,12 @@ class AiTab(QWidget):
         self.show_trace.toggled.connect(self._trace_visibility)
         buttons.addWidget(self.show_trace)
 
+        self.settings_button = QPushButton("Настройки модели")
+        self.settings_button.setFixedWidth(160)
+        self.settings_button.setMinimumHeight(34)
+        self.settings_button.clicked.connect(self._open_settings)
+        buttons.addWidget(self.settings_button)
+
         buttons.addStretch(1)
         column.addWidget(row)
 
@@ -201,6 +236,38 @@ class AiTab(QWidget):
         self.trace_card.setVisible(visible)
         self.show_trace.setText("Расчёты: вкл" if visible else "Расчёты: выкл")
 
+    def _open_settings(self) -> None:
+        """Открыть настройки модели; после сохранения — пересобрать вкладку."""
+        dialog = AiSettingsDialog(self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        self._init_agent()
+        if self._setup_error:
+            if hasattr(self, "answer_view"):
+                self.answer_view.setPlainText(
+                    "Настройки сохранены, но подключиться не удалось.\n\n"
+                    f"{self._setup_error}")
+            return
+
+        if hasattr(self, "answer_view") and hasattr(self, "_status"):
+            self._status.setText(self._status_text())
+            self.answer_view.setPlainText(
+                f"Настройки сохранены. Модель: {self._model_line}")
+        else:
+            self._rebuild()
+
+    def _rebuild(self) -> None:
+        """Перестроить вкладку: пригодится, когда настройки появились позже."""
+        layout = self.layout()
+        if layout is not None:
+            while layout.count():
+                item = layout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+        self._build()
+
     def reset(self) -> None:
         self.question.clear()
         self.answer_view.clear()
@@ -208,7 +275,7 @@ class AiTab(QWidget):
         self._history = []
         self._answer = None
         if self._model_line:
-            self._status.setText(f"Модель: {self._model_line}")
+            self._status.setText(self._status_text())
 
     def ask(self) -> None:
         """Отправить вопрос модели. Считает движок, не модель."""

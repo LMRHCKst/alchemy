@@ -53,3 +53,8 @@ docs/known_issues.md
 docs/stress_tests.md
 Оценки от ИИшек/
 docs/кто_ещё_так_делает.md
+# файлы с ключами: в репозиторий не идут
+ai.json
+config.ai.json
+secrets.json
+*.key

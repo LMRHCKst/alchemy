@@ -15,7 +15,8 @@ import io
 import sys
 
 from .agent import Agent
-from .client import AiError, ChatClient, load_settings
+from .client import AiError, ChatClient
+from .settings_store import ensure_ready
 from .tools import REGISTRY
 
 
@@ -81,7 +82,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        settings = load_settings(args.config)
+        if args.config:
+            from .client import load_settings
+            settings = load_settings(args.config)
+        else:
+            settings, _origin = ensure_ready()
     except AiError as exc:
         print(f"Нет доступа к модели: {exc}", file=sys.stderr)
         return 2
