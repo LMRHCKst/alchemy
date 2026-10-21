@@ -86,10 +86,10 @@ def alpha_unprotonated(anion: str, ph: float) -> float:
     h = 10.0 ** (-ph)
     total = 1.0
     product = 1.0
-    for pka in stages:
+    for number, pka in enumerate(stages, start=1):
         ka = 10.0 ** (-pka)
         product *= ka
-        total += (h ** (stages.index(pka) + 1)) / product
+        total += (h ** number) / product
     return 1.0 / total
 
 

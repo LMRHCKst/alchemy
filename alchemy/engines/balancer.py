@@ -579,22 +579,21 @@ def is_balanced(equation: str) -> bool:
         for el in elements:
             total = Fraction(0)
             for i in indices:
-                total += _to_fraction(species[i].counts.get(el, 0.0)) * Fraction(
-                    int(coeff_of(species[i])))
+                total += (_to_fraction(species[i].counts.get(el, 0.0))
+                          * _to_fraction(coeff_of(species[i])))
             result.append(total)
         return result
 
     left_vec = side_vector(range(n_left))
     right_vec = side_vector(range(n_left, len(species)))
 
-    def normalize(vec: list[Fraction]) -> list[Fraction] | None:
-        for v in vec:
-            if v != 0:
-                return [x / v for x in vec]
-        return None
-
-    ln, rn = normalize(left_vec), normalize(right_vec)
-    if ln is None or rn is None or ln != rn:
+    # Сравниваем векторы напрямую. Раньше каждая сторона нормировалась на
+    # свой первый ненулевой элемент, и «2H2 + O2 = H2O» считалось уравненным:
+    # отношения совпадали, а количества — нет. Единственная допустимая
+    # вольность в записи — общий множитель для всей реакции сразу.
+    if all(v == 0 for v in left_vec) or all(v == 0 for v in right_vec):
+        return False
+    if left_vec != right_vec:
         return False
 
     # Отдельно проверяем заряд

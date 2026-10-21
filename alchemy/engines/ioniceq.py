@@ -282,6 +282,26 @@ def _side(equation_side: str) -> Counter:
     return particles
 
 
+def _reduce_pair(left: Counter, right: Counter) -> tuple[Counter, Counter]:
+    """Сократить обе части уравнения на ОДИН общий делитель.
+
+    Раньше каждая часть сокращалась отдельно, своим НОД. Из-за этого
+    «2Al + 6HCl = 2AlCl3 + 3H2» превращалось в уравнение, где не сходились
+    ни атомы, ни заряд: слева делили на 2, справа — на 1.
+    """
+    values = [int(amount) for amount in
+              list(left.values()) + list(right.values()) if amount > 0]
+    if not values:
+        return left, right
+    divisor = values[0]
+    for value in values[1:]:
+        divisor = math.gcd(divisor, value)
+    if divisor <= 1:
+        return left, right
+    return (Counter({p: a // divisor for p, a in left.items() if a > 0}),
+            Counter({p: a // divisor for p, a in right.items() if a > 0}))
+
+
 def _reduce(particles: Counter) -> Counter:
     """Сократить коэффициенты на наибольший общий делитель."""
     values = [int(amount) for amount in particles.values() if amount > 0]
@@ -366,8 +386,7 @@ def ionic_equation(equation: str) -> Result:
     left_ions = +left_ions
     right_ions = +right_ions
 
-    left_ions = _reduce(left_ions)
-    right_ions = _reduce(right_ions)
+    left_ions, right_ions = _reduce_pair(left_ions, right_ions)
     if not left_ions and not right_ions:
         net = "реакция идёт только в присутствии всех ионов, изменений нет"
     else:

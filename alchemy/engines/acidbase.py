@@ -232,6 +232,10 @@ def _expected_error(ionic_strength_: float) -> int:
         return 3
     if zone == "davies":
         return 8
+    # За пределом Дэвиса ошибка обязана расти, а не падать. Раньше формула
+    # при I = 0.55 давала 4 % — меньше, чем при 0.5, где модель ещё работает.
+    if ionic_strength_ <= 1.0:
+        return int(8 + 12 * (ionic_strength_ - 0.5) / 0.5)
     return min(90, int(20 + 35 * (ionic_strength_ - 1.0)))
 
 
@@ -478,9 +482,24 @@ def weak_acid_ph(concentration: float, ka: float,
     _check_positive(ka, "Ka")
 
     if ionic_strength_ is None:
-        ionic_strength_ = 0.5 * concentration
+        # Ионную силу слабой кислоты создают её собственные ионы, а не
+        # половина аналитической концентрации: при C = 0.1 М и Ka = 1.8e-5
+        # диссоциирует около 1 %, и настоящая I примерно 1.6e-3, а не 0.05.
+        # Считаем в несколько проходов: h -> I = h -> gamma -> h.
+        h_probe = (-ka + math.sqrt(ka ** 2 + 4 * ka * concentration)) / 2.0
+        ionic_strength_ = h_probe
+        for _ in range(3):
+            gamma_probe = (activity_coefficient(1.0, ionic_strength_,
+                                                ion_size_nm=ion_size("H^+"),
+                                                temperature_k=temperature_k)
+                           if include_activity else 1.0)
+            ka_probe = ka / (gamma_probe ** 2)
+            h_probe = (-ka_probe + math.sqrt(
+                ka_probe ** 2 + 4 * ka_probe * concentration)) / 2.0
+            ionic_strength_ = h_probe
 
     gamma = (activity_coefficient(1.0, ionic_strength_,
+                                  ion_size_nm=ion_size("H^+"),
                                   temperature_k=temperature_k)
              if include_activity else 1.0)
 
@@ -631,7 +650,10 @@ def solve_acid_base(systems: list[AcidSystem],
         Ошибка в любом из первых двух пунктов сдвигает pH на несколько единиц.
         """
         positive = h
-        negative = Kw / h * (gamma_h / gamma_oh if include_activity else 1.0)
+        # Kw = a(H+)·a(OH-) = (γh·[H+])·(γoh·[OH-]), значит
+        # [OH-] = Kw / (γh·γoh·[H+]). Раньше стояло умножение на γh/γoh.
+        negative = (Kw / (h * gamma_h * gamma_oh)
+                    if include_activity else Kw / h)
 
         positive += strong_base
         negative += strong_acid
@@ -660,7 +682,12 @@ def solve_acid_base(systems: list[AcidSystem],
                                    ion_size_nm=ion_size("H^+"),
                                    temperature_k=temperature_k) \
         if include_activity else 1.0
-    gamma_oh = gamma_h
+    # OH- — не H+: у него другой ионный радиус, поэтому и коэффициент
+    # активности другой. Приравнивать их было приближением не в ту сторону.
+    gamma_oh = activity_coefficient(1.0, I_estimate,
+                                    ion_size_nm=ion_size("OH^-"),
+                                    temperature_k=temperature_k) \
+        if include_activity else 1.0
 
     def solve_with_gammas(gamma_h: float, gamma_oh: float) -> tuple[float, int]:
         """Найти [H⁺] при заданных коэффициентах активности.
@@ -723,7 +750,12 @@ def solve_acid_base(systems: list[AcidSystem],
                                    ion_size_nm=ion_size("H^+"),
                                    temperature_k=temperature_k) \
         if include_activity else 1.0
-    gamma_oh = gamma_h
+    # OH- — не H+: у него другой ионный радиус, поэтому и коэффициент
+    # активности другой. Приравнивать их было приближением не в ту сторону.
+    gamma_oh = activity_coefficient(1.0, I_estimate,
+                                    ion_size_nm=ion_size("OH^-"),
+                                    temperature_k=temperature_k) \
+        if include_activity else 1.0
 
     h, iterations = solve_with_gammas(gamma_h, gamma_oh)
 
@@ -736,9 +768,12 @@ def solve_acid_base(systems: list[AcidSystem],
             gamma_new = activity_coefficient(
                 1.0, I_new, ion_size_nm=ion_size("H^+"),
                 temperature_k=temperature_k)
-            if abs(gamma_new - gamma_h) > 1e-9:
+            gamma_oh_new = activity_coefficient(
+                1.0, I_new, ion_size_nm=ion_size("OH^-"),
+                temperature_k=temperature_k)
+            if abs(gamma_new - gamma_h) > 1e-9 or abs(gamma_oh_new - gamma_oh) > 1e-9:
                 gamma_h = gamma_new
-                gamma_oh = gamma_new
+                gamma_oh = gamma_oh_new
                 h, extra = solve_with_gammas(gamma_h, gamma_oh)
                 iterations += extra
             I_estimate = I_new
@@ -846,7 +881,8 @@ def ph_of_acid(acid_query: str, concentration: float,
         stages = _stages_pka(acid)
         if len(stages) > 1:
             system = AcidSystem(acid.formula, concentration, stages)
-            eq = solve_acid_base([system], temperature_k=temperature_k)
+            eq = solve_acid_base([system], temperature_k=temperature_k,
+                        include_activity=include_activity)
             # равновесие решается с активностями; если их просили
             # не учитывать — берём концентрационный pH
             value = eq.ph if include_activity else -math.log10(eq.h_concentration)
@@ -902,7 +938,8 @@ def ph_of_acid(acid_query: str, concentration: float,
         extra = _related_pka(acid.formula, acid.protons)
         if extra:
             system = AcidSystem(acid.formula, concentration, extra)
-            eq = solve_acid_base([system], temperature_k=temperature_k)
+            eq = solve_acid_base([system], temperature_k=temperature_k,
+                        include_activity=include_activity)
             res.with_step(
                 f"С учётом всех {acid.protons} ступеней диссоциации pH = {eq.ph:.4f}"
             )
@@ -922,7 +959,8 @@ def ph_of_acid(acid_query: str, concentration: float,
     return res
 
 
-def _related_pka(formula: str, protons: int) -> list[float] | None:
+def _related_pka(formula: str, protons: int,
+                 temperature_k: float = 298.15) -> list[float] | None:
     """Собрать набор pKa ступеней одной кислоты из справочника.
 
     Сравнение идёт по точной формуле: раньше «H2SO4» совпадала с «H2S»
@@ -953,25 +991,21 @@ def _related_pka(formula: str, protons: int) -> list[float] | None:
             acid = ADB.maybe_acid(step)
             if acid is None:
                 break
-            result.append(acid.pKa)
+            result.append(acid.pKa_at(temperature_k))
         # отдаём столько ступеней, сколько нашлось: у серной их две,
         # и обе нужны, даже если в карточке указан один протон
         return result or None
     return None
 
 
-def _stages_pka(acid) -> list[float]:
+def _stages_pka(acid, temperature_k: float = 298.15) -> list[float]:
     """Все известные ступени кислоты, начиная с первой."""
-    chain = _related_pka(acid.formula, 6)
+    chain = _related_pka(acid.formula, 6, temperature_k)
     if chain:
         return chain
-    return [acid.pKa]
+    return [acid.pKa_at(temperature_k)]
 
 
-def ph_of_base(base_query: str, concentration: float,
-               temperature_k: float = 298.15,
-               include_activity: bool = True) -> Result:
-    """pH раствора основания из справочника."""
 def _check_solubility_limit(res: Result, formula: str, concentration: float,
                             n_hydroxide: float) -> None:
     """Предупредить, если заданная концентрация выше растворимости.
@@ -1102,7 +1136,9 @@ def buffer_ph(acid_query: str, c_acid: float, c_salt: float,
     acid = ADB.find_acid(acid_query)
     pka = acid.pKa_at(temperature_k)
 
-    I = 0.5 * (c_salt * 1.0)   # соль даёт ионы; вклад кислоты мал
+    # Соль 1:1 диссоциирует на два однозарядных иона, поэтому её ионная
+    # сила равна концентрации. Раньше стояло 0.5*c_salt — вдвое меньше.
+    I = c_salt
     if include_activity:
         gamma_a = activity_coefficient(1.0, I, temperature_k=temperature_k)
     else:
@@ -1406,7 +1442,8 @@ def titration_curve(acid_query: str, c_acid: float, v_acid_ml: float,
 
 def titration_ph_at(acid_query: str, c_acid: float, v_acid_ml: float,
                     c_base: float, v_base_ml: float,
-                    temperature_k: float = 298.15) -> Result:
+                    temperature_k: float = 298.15,
+                    include_activity: bool = True) -> Result:
     """pH в конкретной точке титрования."""
     acid = ADB.find_acid(acid_query)
 
@@ -1422,7 +1459,9 @@ def titration_ph_at(acid_query: str, c_acid: float, v_acid_ml: float,
 
     if acid.is_strong:
         eq = solve_acid_base([], strong_acid=c_acid_now,
-                             strong_base=c_base_now, temperature_k=temperature_k)
+                             strong_base=c_base_now,
+                             temperature_k=temperature_k,
+                             include_activity=include_activity)
         stage = _titration_stage(v_base_ml, v_eq)
         res = Result(
             value=eq.ph,
@@ -1433,7 +1472,8 @@ def titration_ph_at(acid_query: str, c_acid: float, v_acid_ml: float,
         pka_list = _related_pka(acid.formula, acid.protons) or [acid.pKa_at(temperature_k)]
         system = AcidSystem(acid.formula, c_acid_now, pka_list)
         eq = solve_acid_base([system], strong_base=c_base_now,
-                             temperature_k=temperature_k)
+                             temperature_k=temperature_k,
+                             include_activity=include_activity)
         stage = _titration_stage(v_base_ml, v_eq)
         res = Result(
             value=eq.ph,

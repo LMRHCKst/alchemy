@@ -95,6 +95,20 @@ def _convert_brace_charge(s: str) -> str:
     return f"{head}^{magnitude}{sign}"
 
 
+#: многоатомные ионы из одного элемента. Для них цифра перед знаком —
+#: индекс, а не заряд: I3- это трииодид, а не иод(III).
+_HOMOATOMIC_POLYIONS = {
+    "I3-": "I3^-",
+    "I3+": "I3^+",
+    "N3-": "N3^-",
+    "O22-": "O2^2-",
+    "S22-": "S2^2-",
+    "C22-": "C2^2-",
+    "Hg22+": "Hg2^2+",
+    "P43-": "P4^3-",
+}
+
+
 def _resolve_bare_charge(s: str) -> str:
     """Разобрать запись «цифры + знак» на конце формулы.
 
@@ -128,6 +142,19 @@ def _resolve_bare_charge(s: str) -> str:
         return s
 
     symbols = set(_ELEMENT_SYMBOL_RE.findall(head))
+
+    # Заряд после закрывающей скобки — это заряд комплекса, а не индекс:
+    # «[Cu(NH3)4]2+» читалось как удвоенный комплекс, и масса выходила
+    # вдвое больше настоящей.
+    if head.rstrip().endswith(("]", ")")):
+        return f"{head}^{digits}{sign}"
+
+    # Гомоатомные многоатомные ионы: здесь цифра всё-таки индекс, хотя
+    # элемент один. Слишком редкие, чтобы угадывать правилом, поэтому
+    # перечислены явно.
+    polyion = _HOMOATOMIC_POLYIONS.get(s.strip().replace(" ", ""))
+    if polyion is not None:
+        return polyion
 
     if len(symbols) == 1:
         # Fe3+, Ca2+ — цифры означают заряд
@@ -170,7 +197,11 @@ def _replace_hydrate_dots(s: str) -> str:
             after_is_formula = bool(
                 re.match(r"[0-9]*[A-Z\[\(\{]", s[i + 1:])
             )
-            if before and (before.isalpha() or before in ")]") and after_is_formula:
+            digits_before = s[j + 1:i]
+            is_fraction = digits_before.startswith("0")
+
+            if (before and (before.isalpha() or before in ")]")
+                    and after_is_formula and not is_fraction):
                 result.append("*")
                 i += 1
                 continue
@@ -465,6 +496,13 @@ class Composition:
         else:
             base = _pretty_from_counts(self.counts)
 
+        if not self.counts and self.charge == -1:
+            # Электрон: без этой ветки он печатался одним знаком «−»,
+            # и обратный разбор падал.
+            base = "e"
+            if self.coefficient != 1:
+                base = f"{_fmt_num(self.coefficient)}{base}"
+
         if self.charge:
             sign = "+" if self.charge > 0 else "−"
             mag = abs(self.charge)
@@ -610,6 +648,15 @@ class _Parser:
 
     def _read_number(self) -> float:
         """Прочитать коэффициент после группы или элемента."""
+        # Дробный индекс означает нестехиометрическое соединение
+        # (Fe0.95O, YBa2Cu3O7). Такие записи не считаем: раньше из них
+        # молча получалось Fe:0 и O:95, а масса 1519 г/моль.
+        if (self._peek() == "." and self.pos + 1 < len(self.s)
+                and self.s[self.pos + 1].isdigit()):
+            raise FormulaError(
+                f"Дробный индекс в формуле {self.s!r}: нестехиометрические "
+                f"соединения не поддерживаются. Укажите целые индексы."
+            )
         if self._peek().isdigit():
             m = _NUMBER_RE.match(self.s, self.pos)
             if m:
@@ -621,6 +668,12 @@ class _Parser:
                     raise FormulaError(
                         f"Две группы цифр подряд в формуле {self.s!r} — "
                         f"вероятно, пропущен разделитель или элемент"
+                    )
+                if not float(value).is_integer():
+                    raise FormulaError(
+                        f"Дробный индекс {value:g} в формуле {self.s!r}: "
+                        f"нестехиометрические соединения не поддерживаются. "
+                        f"Укажите целые индексы."
                     )
                 if value > MAX_SUBSCRIPT:
                     raise FormulaError(

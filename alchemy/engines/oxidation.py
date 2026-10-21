@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import re
+
 from ..core import formula as F
 from ..core import periodic
 from ..core.errors import AlchemyError, InputError
@@ -21,6 +23,7 @@ REACTION_TYPES = {
     "decomposition": "Разложение",
     "substitution": "Замещение",
     "exchange": "Обмен",
+    "combustion": "Горение (окисление)",
 }
 
 #: постоянные степени окисления в соединениях
@@ -106,9 +109,12 @@ def _radical_fixes(formula: str) -> dict[str, float]:
 
     fixes: dict[str, float] = {}
 
-    # Длинные остатки проверяем первыми: SO4 раньше, чем SO3
+    # Длинные остатки проверяем первыми: SO4 раньше, чем SO3.
+    # Совпадение ищем как отдельную группу: «ClO» не должно находиться
+    # внутри «NaClO3», где на самом деле хлорат ClO3.
     for radical in sorted(RADICALS, key=len, reverse=True):
-        if radical not in body:
+        pattern = re.escape(radical) + r"(?![0-9])"
+        if not re.search(pattern, body):
             continue
 
         charge = RADICALS[radical]
@@ -129,9 +135,11 @@ def _radical_fixes(formula: str) -> dict[str, float]:
         subtotal = oxygen * (-2) + hydrogen * 1
         state = (charge - subtotal) / count
 
-        # Не перезаписываем то, что уже зафиксировано постоянным правилом
-        if element not in FIXED_STATES:
-            fixes[element] = state
+        # Не перезаписываем ни постоянные правила, ни то, что уже
+        # зафиксировал более длинный остаток: иначе ClO добивал хлорат.
+        if element in FIXED_STATES or element in fixes:
+            continue
+        fixes[element] = state
 
     return fixes
 
@@ -288,6 +296,17 @@ def oxidation_states(text: str) -> Result:
     return res
 
 
+def _is_oxygen(species: str) -> bool:
+    """Это молекула O2 (с коэффициентом или без)?"""
+    body = re.sub(r"^[0-9.]+\s*", "", str(species).strip())
+    try:
+        composition = F.parse(body)
+    except AlchemyError:
+        return False
+    return (composition.counts == {"O": 2.0}
+            and not composition.charge)
+
+
 def reaction_type(equation: str) -> Result:
     """Тип реакции по числу и составу веществ."""
     from ..engines import balancer as BAL
@@ -306,6 +325,10 @@ def reaction_type(equation: str) -> Result:
         kind = "decomposition"
     elif len(left_simple) == 1 and len(right_simple) == 1:
         kind = "substitution"
+    elif any(_is_oxygen(sp) for sp in left_simple) and len(right) >= 2:
+        # Простое вещество реагирует с кислородом и даёт несколько
+        # продуктов: это горение, а не обмен ионами.
+        kind = "combustion"
     elif len(left) >= 2 and len(right) >= 2:
         kind = "exchange"
     else:

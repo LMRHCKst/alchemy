@@ -571,10 +571,10 @@ POURBAIX_SYSTEMS: dict[str, dict] = {
              "ph_slope": 0.0, "kind": "metal"},
             {"label": "Fe³⁺ + e⁻ = Fe²⁺", "e0": 0.771, "n": 1,
              "ph_slope": 0.0, "kind": "redox"},
-            {"label": "Fe(OH)₃ + 3H⁺ = Fe³⁺ + 3H₂O",
-             "e0": 0.771, "n": 1, "ph_slope": -0.177, "kind": "hydrolysis"},
-            {"label": "Fe(OH)₂ + 2H⁺ = Fe²⁺ + 2H₂O",
-             "e0": -0.447, "n": 2, "ph_slope": -0.118, "kind": "hydrolysis"},
+            {"label": "Fe(OH)₃ | Fe³⁺",
+             "kind": "ph_boundary", "hydroxide": "Fe(OH)3", "c": 0.01},
+            {"label": "Fe(OH)₂ | Fe²⁺",
+             "kind": "ph_boundary", "hydroxide": "Fe(OH)2", "c": 0.01},
         ],
     },
     "Zn": {
@@ -582,8 +582,8 @@ POURBAIX_SYSTEMS: dict[str, dict] = {
         "lines": [
             {"label": "Zn²⁺ + 2e⁻ = Zn", "e0": -0.7618, "n": 2,
              "ph_slope": 0.0, "kind": "metal"},
-            {"label": "Zn(OH)₂ + 2H⁺ = Zn²⁺ + 2H₂O",
-             "e0": -0.7618, "n": 2, "ph_slope": -0.0592, "kind": "hydrolysis"},
+            {"label": "Zn(OH)₂ | Zn²⁺",
+             "kind": "ph_boundary", "hydroxide": "Zn(OH)2", "c": 0.01},
         ],
     },
     "Cu": {
@@ -593,8 +593,8 @@ POURBAIX_SYSTEMS: dict[str, dict] = {
              "ph_slope": 0.0, "kind": "metal"},
             {"label": "Cu²⁺ + e⁻ = Cu⁺", "e0": 0.153, "n": 1,
              "ph_slope": 0.0, "kind": "redox"},
-            {"label": "Cu(OH)₂ + 2H⁺ = Cu²⁺ + 2H₂O",
-             "e0": 0.3419, "n": 2, "ph_slope": -0.0592, "kind": "hydrolysis"},
+            {"label": "Cu(OH)₂ | Cu²⁺",
+             "kind": "ph_boundary", "hydroxide": "Cu(OH)2", "c": 0.01},
         ],
     },
     "Al": {
@@ -602,11 +602,32 @@ POURBAIX_SYSTEMS: dict[str, dict] = {
         "lines": [
             {"label": "Al³⁺ + 3e⁻ = Al", "e0": -1.662, "n": 3,
              "ph_slope": 0.0, "kind": "metal"},
-            {"label": "Al(OH)₃ + 3H⁺ = Al³⁺ + 3H₂O",
-             "e0": -1.662, "n": 3, "ph_slope": -0.0592, "kind": "hydrolysis"},
+            {"label": "Al(OH)₃ | Al³⁺",
+             "kind": "ph_boundary", "hydroxide": "Al(OH)3", "c": 0.01},
         ],
     },
 }
+
+
+def _precipitation_ph(hydroxide: str, concentration: float) -> float | None:
+    """pH начала осаждения гидроксида M(OH)ₙ при заданной концентрации.
+
+    Ksp = [M]·[OH]ⁿ, значит [OH] = (Ksp/[M])^(1/n) и pH = pKw + lg(Ksp/[M])/n.
+    """
+    from ..data import acids as ADB
+    from ..data import solubility as SDB
+
+    solid = SDB.find_solid(hydroxide)
+    if not solid or not solid.Ksp:
+        return None
+    # n — число гидроксильных групп, а не катионов
+    n = int(solid.anion_n or 1)
+    if concentration <= 0:
+        return None
+    try:
+        return ADB.pkw_at(298.15) + math.log10(solid.Ksp / concentration) / n
+    except (ValueError, ZeroDivisionError):
+        return None
 
 
 def pourbaix_diagram(element: str, ph_min: float = 0.0, ph_max: float = 14.0,
@@ -655,8 +676,25 @@ def pourbaix_diagram(element: str, ph_min: float = 0.0, ph_max: float = 14.0,
         data["выделение водорода"].append((ph, -0.0592 * ph))
         data["выделение кислорода"].append((ph, 1.229 - 0.0592 * ph))
         for line in system["lines"]:
+            if line.get("kind") == "ph_boundary":
+                continue
             e = line["e0"] + line["ph_slope"] * (ph - 0.0)
             data[line["label"]].append((ph, e))
+
+    # Границы осаждения гидроксидов: в них не участвуют электроны, поэтому
+    # на диаграмме это вертикальные линии при фиксированном pH, а не
+    # наклонные. Раньше им приписывался наклон Нернста, и картинка врала.
+    boundaries = [line for line in system["lines"]
+                  if line.get("kind") == "ph_boundary"]
+    if boundaries:
+        all_e = [e for points_list in data.values() for _ph, e in points_list]
+        e_low, e_high = (min(all_e), max(all_e)) if all_e else (-2.0, 2.0)
+        for line in boundaries:
+            ph_line = _precipitation_ph(line["hydroxide"], line["c"])
+            if ph_line is None:
+                data[line["label"]] = [(ph_min, e_low), (ph_min, e_low)]
+                continue
+            data[line["label"]] = [(ph_line, e_low), (ph_line, e_high)]
 
     # Основная линия металла — первая в списке
     metal_line = system["lines"][0]
@@ -672,6 +710,15 @@ def pourbaix_diagram(element: str, ph_min: float = 0.0, ph_max: float = 14.0,
     res.with_step(f"Элемент: {system['name']} ({key})")
     res.with_step(f"Всего линий на диаграмме: {len(data)}")
     for line in system["lines"]:
+        if line.get("kind") == "ph_boundary":
+            ph_line = _precipitation_ph(line["hydroxide"], line["c"])
+            if ph_line is None:
+                continue
+            res.with_step(
+                f"  {line['label']}: вертикальная граница при pH {ph_line:.2f} "
+                f"(осаждение при [ион] = {line['c']:g} моль/л)"
+            )
+            continue
         res.with_step(
             f"  {line['label']}: E° = {line['e0']:+.4f} В, "
             f"наклон {line['ph_slope']:+.4f} В/pH"
@@ -731,11 +778,12 @@ def corrosion_prediction(metal_electrode: str, ph: float = 7.0,
     metal = EDB.find(metal_electrode)
 
     e_metal = metal.E0
-    e_h = -0.0592 * ph * (298.15 / temperature_k)
+    # Наклон Нернста растёт с температурой: 0.0592 * (T / 298.15)
+    e_h = -0.0592 * ph * (temperature_k / 298.15)
 
     oxidants = {"H⁺/H₂": e_h}
     if dissolved_oxygen:
-        oxidants["O₂/H₂O"] = 1.229 - 0.0592 * ph * (298.15 / temperature_k)
+        oxidants["O₂/H₂O"] = 1.229 - 0.0592 * ph * (temperature_k / 298.15)
 
     rows = []
     for name, e_ox in oxidants.items():

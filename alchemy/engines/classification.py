@@ -34,6 +34,7 @@ CLASSES = {
     "amphoteric_hydroxide": "Амфотерный гидроксид",
     "acid": "Кислота",
     "salt": "Соль",
+    "special": "Не оксид: вода, пероксид или озон",
     "unknown": "Не удалось отнести к классу",
 }
 
@@ -190,6 +191,11 @@ def _oxide_class(composition, body: str) -> tuple[str, str]:
     return "acidic_oxide", f"оксид неметалла ({periodic.by_symbol(other).name_ru})"
 
 
+#: вещества, которые не являются ни оксидами, ни солями по школьной
+#: классификации. H2O2 — пероксид, а не кислотный оксид.
+NOT_OXIDES = {"H2O", "H2O2", "OF2", "O3"}
+
+
 def classify(text: str) -> Result:
     """Определить класс вещества по формуле."""
     raw = str(text or "").strip()
@@ -215,6 +221,12 @@ def classify(text: str) -> Result:
         else:
             kind = "simple_nonmetal"
             reason = f"{periodic.by_symbol(symbol).name_ru} — неметалл"
+
+    elif body in NOT_OXIDES:
+        # Вода, пероксид, озон, фторид кислорода — не оксиды по школьной
+        # классификации. Раньше H2O2 попадал в кислотные оксиды.
+        kind = "special"
+        reason = "не оксид: особое соединение"
 
     elif body in database["acids"]:
         kind = "acid"

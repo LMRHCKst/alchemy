@@ -24,7 +24,15 @@ INERT_CATIONS = {"Li^+", "Na^+", "K^+", "Rb^+", "Cs^+", "Ca^2+",
                  "Sr^2+", "Ba^2+"}
 
 #: анионы сильных кислот
-INERT_ANIONS = {"Cl^-", "Br^-", "I^-", "NO3^-", "ClO4^-", "HSO4^-",
+#: анионы остатков сильных кислот: гидролизу не подвергаются.
+#: HSO4^- здесь стоять не может: у него pKa 1.99, и NaHSO4 даёт кислую
+#: среду, а не нейтральную.
+#: кислые остатки: соль даёт кислую среду не гидролизом, а диссоциацией.
+#: HSO4- — кислота средней силы (pKa 1.99), поэтому NaHSO4 кислый.
+ACIDIC_ANIONS = {"HSO4^-": 1.02e-2, "H2PO4^-": 7.1e-3}
+
+
+INERT_ANIONS = {"Cl^-", "Br^-", "I^-", "NO3^-", "ClO4^-",
                 "SO4^2-", "ClO3^-", "MnO4^-", "Cr2O7^2-"}
 
 #: анион -> кислота, по которой берётся Ka.
@@ -232,6 +240,26 @@ def hydrolysis(salt: str, concentration: float = 0.1,
         res.with_meta("medium", "нейтральная")
         return res
 
+    # Кислая соль: анион диссоциирует как кислота, гидролиза по аниону нет.
+    acidic_ka = ACIDIC_ANIONS.get(anion)
+    if acidic_ka:
+        h = math.sqrt(acidic_ka * concentration)
+        ph = -math.log10(h)
+        res = Result(
+            value=f"кислая, pH {ph:.2f}",
+            unit="",
+            label="Гидролиз соли",
+            method="Кислая соль сильной кислоты: среда кислая из-за диссоциации",
+        )
+        res.with_step(f"Анион {anion} — кислота средней силы, pKa = {(-math.log10(acidic_ka)):.2f}")
+        res.with_step(f"Ka = {acidic_ka:.3g}, C = {concentration:g} моль/л")
+        res.with_step(f"[H⁺] = √(Ka·C) = {h:.4e} моль/л, pH = {ph:.2f}")
+        res.with_step("Гидролиз по аниону не идёт: анион отдаёт протон, а не принимает")
+        res.with_meta("kind", "acidic_salt")
+        res.with_meta("medium", "кислая")
+        res.with_meta("ph", ph)
+        return res
+
     # константы
     ka_data = _acid_ka(anion) if info["anion_weak"] else None
     kb_data = _base_kb(cation) if info["cation_weak"] else None
@@ -256,10 +284,10 @@ def hydrolysis(salt: str, concentration: float = 0.1,
         # 7 + ½(pKa − pKb). Формула стандартная для школьного курса.
         pka = -math.log10(ka_data[0])
         pkb = -math.log10(kb_data[0])
-        ph = 7.0 + 0.5 * (pka - pkb)
+        ph = pkw / 2 + 0.5 * (pka - pkb)
         res.with_step(f"Ka({ka_data[1]}) = {ka_data[0]:.3g} (pKa = {pka:.2f})")
         res.with_step(f"Kb({kb_data[1]}) = {kb_data[0]:.3g} (pKb = {pkb:.2f})")
-        res.with_step(f"pH = 7 + ½(pKa − pKb) = {ph:.2f}")
+        res.with_step(f"pH = pKw/2 + ½(pKa − pKb) = {ph:.2f}")
         res.with_meta("ph", ph)
         res.with_meta("pka", pka)
         res.with_meta("pkb", pkb)
@@ -284,7 +312,7 @@ def hydrolysis(salt: str, concentration: float = 0.1,
         res.with_step(f"{kh_note} = {kh:.3g}")
         degree = math.sqrt(kh / concentration)
         oh = math.sqrt(kh * concentration)
-        ph = 14.0 - (-math.log10(oh)) if oh > 0 else 7.0
+        ph = pkw - (-math.log10(oh)) if oh > 0 else 7.0
         res.with_step(f"Степень гидролиза h = √(Kh/C) = {degree * 100:.3f} %")
         res.with_step(f"[OH⁻] = √(Kh·C) = {oh:.3e} моль/л")
         res.with_step(f"pH = {ph:.2f}")

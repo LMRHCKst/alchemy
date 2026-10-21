@@ -472,9 +472,20 @@ class TestTitration(unittest.TestCase):
         self.assertIn("после точки", r.meta["stage"])
 
     def test_ph_excess_base_value(self):
-        """При 40 мл титранта избыток 0.1 М NaOH разбавлен вдвое: pH около 12.6."""
-        r = AB.titration_ph_at("HCl", 0.1, 20.0, 0.1, 40.0)
-        self.assertAlmostEqual(r.numeric(), 12.6, places=1)
+        """При 40 мл титранта избыток щёлочи даёт pH около 12.5.
+
+        Считаем по концентрации: [OH-] = 0.1*20/60 = 0.0333 моль/л,
+        pOH = 1.477, pH = 12.52. С учётом активности OH- выходит 12.43:
+        коэффициент активности меньше единицы, поэтому pH ниже.
+        Прежнее ожидание 12.6 было просто неверным.
+        """
+        ideal = AB.titration_ph_at("HCl", 0.1, 20.0, 0.1, 40.0,
+                                   include_activity=False)
+        self.assertAlmostEqual(ideal.numeric(), 12.52, places=1)
+
+        active = AB.titration_ph_at("HCl", 0.1, 20.0, 0.1, 40.0)
+        self.assertLess(active.numeric(), ideal.numeric())
+        self.assertGreater(active.numeric(), 12.3)
 
     # ---------------- погрешность индикатора ----------------
 
