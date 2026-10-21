@@ -230,6 +230,24 @@ class TestEquilibriumShift(unittest.TestCase):
         self.assertIn("вправо", table["Больше исходных веществ"])
         self.assertIn("влево", table["Больше продуктов"])
 
+    def test_shift_single_accepts_russian(self):
+        """Фактор можно назвать по-русски, как обещано в подсказке."""
+        result = EQ.shift_single("N2 + 3H2 = 2NH3", "давление", "повышение")
+        self.assertIn("вправо", result.value)
+
+    def test_shift_single_temperature(self):
+        """Нагрев сдвигает экзотермический синтез влево."""
+        result = EQ.shift_single("N2 + 3H2 = 2NH3", "температура", "повышение")
+        self.assertIn("влево", result.value)
+
+    def test_shift_single_decrease(self):
+        result = EQ.shift_single("N2 + 3H2 = 2NH3", "давление", "понижение")
+        self.assertIn("влево", result.value)
+
+    def test_shift_single_rejects_unknown(self):
+        with self.assertRaises(Exception):
+            EQ.shift_single("N2 + 3H2 = 2NH3", "влажность")
+
 
 class TestHardness(unittest.TestCase):
     """Жёсткость воды."""

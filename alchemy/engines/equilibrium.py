@@ -25,6 +25,33 @@ FACTORS = {
     "concentration": "Концентрация",
 }
 
+#: родительный падеж для строк таблицы: «повышение температуры»,
+#: а не «повышение температура»
+FACTORS_GENITIVE = {
+    "temperature": "температуры",
+    "pressure": "давления",
+    "concentration": "концентрации",
+}
+
+#: как человек называет фактор. Английские ключи оставлены для кода,
+#: русские — потому что интерфейс русский и в подсказке перечислены они
+FACTOR_ALIASES = {
+    "temperature": "temperature", "температура": "temperature",
+    "температуру": "temperature", "нагрев": "temperature",
+    "pressure": "pressure", "давление": "pressure",
+    "давлением": "pressure",
+    "concentration": "concentration", "концентрация": "concentration",
+    "концентрацию": "concentration",
+}
+
+#: как человек называет изменение
+CHANGE_ALIASES = {
+    "increase": "increase", "повышение": "increase", "повысить": "increase",
+    "увеличить": "increase", "больше": "increase", "растёт": "increase",
+    "decrease": "decrease", "понижение": "decrease", "понизить": "decrease",
+    "уменьшить": "decrease", "меньше": "decrease", "падает": "decrease",
+}
+
 
 def _gas_amount(species: str) -> int | None:
     """Молей газа в одном моле вещества: 1 для газа, 0 для конденсированного.
@@ -194,29 +221,28 @@ def shift_single(equation: str, factor: str,
     """Смещение равновесия по одному фактору."""
     full = equilibrium_shift(equation)
 
-    factor_key = factor.strip().lower()
-    if factor_key not in FACTORS:
+    factor_key = FACTOR_ALIASES.get(factor.strip().lower())
+    if factor_key is None:
         raise InputError(
             f"Неизвестный фактор «{factor}». Допустимо: температура, "
             f"давление, концентрация")
 
-    keyword = "Повышение" if change == "increase" else "Понижение"
+    change = CHANGE_ALIASES.get(str(change).strip().lower(), change)
+    if change not in ("increase", "decrease"):
+        raise InputError(
+            f"Неизвестное изменение «{change}». Допустимо: повышение "
+            f"или понижение")
 
     if factor_key == "concentration":
         wanted = ("Больше исходных" if change == "increase"
                   else "Больше продуктов")
-    elif factor_key == "pressure" and change == "change":
-        wanted = "Давление"
     else:
-        wanted = f"{keyword} {FACTORS[factor_key].lower()}"
+        keyword = "Повышение" if change == "increase" else "Понижение"
+        wanted = f"{keyword} {FACTORS_GENITIVE[factor_key]}"
 
     row = next((item for item in full.value
                 if str(item["Фактор"]).lower().startswith(wanted.lower())),
                None)
-
-    if row is None:
-        row = next((item for item in full.value
-                    if str(item["Фактор"]) == "Давление"), None)
 
     if row is None:
         raise AlchemyError(
