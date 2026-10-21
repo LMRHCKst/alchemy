@@ -1223,7 +1223,6 @@ def buffer_preparation(acid_query: str, target_ph: float, total_volume_l: float,
 
     # Массы для навески, если известны формулы соли
     if acid.formula.startswith("CH3COOH"):
-        M_salt = None
         try:
             from ..core.formula import molar_mass
             M_salt = molar_mass("CH3COONa")
@@ -1232,8 +1231,14 @@ def buffer_preparation(acid_query: str, target_ph: float, total_volume_l: float,
                 f"(M = {M_salt:.3f} г/моль)"
             )
             res.with_meta("mass_salt_g", n_salt * M_salt)
-        except Exception:
-            pass
+        except Exception as exc:
+            # Раньше здесь стоял голый pass, и масса соли молча исчезала
+            # из ответа. Теперь человек видит, что навеску посчитать не вышло.
+            res.with_warning(
+                f"Массу соли посчитать не удалось ({type(exc).__name__}): "
+                f"нет молярной массы ацетата натрия в справочнике. "
+                f"Количество вещества указано в молях."
+            )
 
     res.with_assumption(
         "Соль считается полностью диссоциированной, а её вклад в pH — только "
