@@ -129,7 +129,11 @@ class AiTab(QWidget):
         self._setup_error = ""
         try:
             settings, origin = settings_store.ensure_ready()
-            self._agent = Agent(ChatClient(settings))
+            self._agent = Agent(
+                ChatClient(settings),
+                max_steps=settings.max_steps,
+                system_prompt=(settings.system_prompt if settings.advanced else ""),
+            )
             self._model_line = settings.source
             self._origin = origin
         except AiError as exc:

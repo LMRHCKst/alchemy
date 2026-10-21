@@ -29,7 +29,14 @@ class AiError(RuntimeError):
 
 @dataclass
 class Settings:
-    """Что нужно знать, чтобы отправить запрос."""
+    """Что нужно знать, чтобы отправить запрос.
+
+    Продвинутые поля (top_p, штрафы, seed, число шагов, свой системный
+    промпт) работают по-настоящему, но применяются только когда включён
+    флаг `advanced`. В интерфейсе раздел заблокирован: значения по
+    умолчанию проверены, а крутить их без понимания — способ сломать
+    ответ и не заметить.
+    """
 
     api_key: str
     api_base: str = "https://gptunnel.ru/v1"
@@ -38,9 +45,38 @@ class Settings:
     temperature: float = 0.2
     timeout: float = 180.0
 
+    # --- продвинутые ---
+    advanced: bool = False
+    top_p: float = 1.0
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+    seed: int | None = None
+    max_steps: int = 6
+    system_prompt: str = ""
+
     @property
     def source(self) -> str:
         return f"{self.api_base} · {self.model}"
+
+    def generation_params(self) -> dict[str, Any]:
+        """Параметры генерации для запроса.
+
+        Базовые уходят всегда, продвинутые — только при `advanced`.
+        """
+        params: dict[str, Any] = {
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+        }
+        if not self.advanced:
+            return params
+        params["top_p"] = self.top_p
+        if self.presence_penalty:
+            params["presence_penalty"] = self.presence_penalty
+        if self.frequency_penalty:
+            params["frequency_penalty"] = self.frequency_penalty
+        if self.seed is not None:
+            params["seed"] = self.seed
+        return params
 
 
 def find_config(explicit: str | os.PathLike | None = None) -> Path:
@@ -134,10 +170,9 @@ class ChatClient:
         payload: dict[str, Any] = {
             "model": self.settings.model,
             "messages": messages,
-            "max_tokens": self.settings.max_tokens,
-            "temperature": self.settings.temperature,
             "stream": False,
         }
+        payload.update(self.settings.generation_params())
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = tool_choice

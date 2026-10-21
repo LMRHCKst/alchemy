@@ -183,10 +183,14 @@ class Agent:
     """Диалог с моделью, у которой есть только наши движки."""
 
     def __init__(self, client: ChatClient, *, max_steps: int = MAX_STEPS,
-                 on_tool: Callable[[str, dict, str], None] | None = None):
+                 on_tool: Callable[[str, dict, str], None] | None = None,
+                 system_prompt: str = ""):
         self.client = client
         self.max_steps = max_steps
         self.on_tool = on_tool
+        # свой системный промпт — продвинутая настройка: по умолчанию
+        # работает проверенный SYSTEM_PROMPT
+        self.system_prompt = system_prompt.strip() or SYSTEM_PROMPT
 
     def _run_tool(self, call: dict) -> tuple[Step, dict]:
         """Выполнить вызов и подготовить сообщение для модели."""
@@ -216,7 +220,7 @@ class Agent:
 
     def ask(self, question: str, *, history: list[dict] | None = None) -> Answer:
         """Задать вопрос и получить ответ, посчитанный движками."""
-        messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
         if history:
             messages.extend(history)
         messages.append({"role": "user", "content": question})

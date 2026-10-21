@@ -10,8 +10,8 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout,
-    QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox, QVBoxLayout,
-    QWidget,
+    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton,
+    QSpinBox, QVBoxLayout, QWidget,
 )
 
 from ..ai import local_server, settings_store
@@ -120,7 +120,62 @@ class AiSettingsDialog(QDialog):
         self.temperature.setValue(float(saved.get("temperature") or 0.2))
         form.addRow("Температура:", self.temperature)
 
+        # --- продвинутые параметры: закрыты по умолчанию ---
+        self.advanced_toggle = QPushButton()
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.setChecked(bool(saved.get("advanced")))
+        self.advanced_toggle.toggled.connect(self._toggle_advanced)
+        form.addRow("", self.advanced_toggle)
+
+        self.advanced_box = QWidget()
+        advanced_form = QFormLayout(self.advanced_box)
+        advanced_form.setContentsMargins(0, 0, 0, 0)
+        advanced_form.setSpacing(8)
+        advanced_form.setLabelAlignment(Qt.AlignRight)
+
+        self.top_p = QDoubleSpinBox()
+        self.top_p.setRange(0.01, 1.0)
+        self.top_p.setSingleStep(0.05)
+        self.top_p.setValue(float(saved.get("top_p") or 1.0))
+        advanced_form.addRow("top_p:", self.top_p)
+
+        self.presence_penalty = QDoubleSpinBox()
+        self.presence_penalty.setRange(-2.0, 2.0)
+        self.presence_penalty.setSingleStep(0.1)
+        self.presence_penalty.setValue(
+            float(saved.get("presence_penalty") or 0.0))
+        advanced_form.addRow("Штраф за повтор темы:", self.presence_penalty)
+
+        self.frequency_penalty = QDoubleSpinBox()
+        self.frequency_penalty.setRange(-2.0, 2.0)
+        self.frequency_penalty.setSingleStep(0.1)
+        self.frequency_penalty.setValue(
+            float(saved.get("frequency_penalty") or 0.0))
+        advanced_form.addRow("Штраф за повтор слов:", self.frequency_penalty)
+
+        self.seed = QLineEdit()
+        seed_value = saved.get("seed")
+        self.seed.setPlaceholderText("не задано — ответы разные")
+        if seed_value not in (None, ""):
+            self.seed.setText(str(seed_value))
+        advanced_form.addRow("Зерно (seed):", self.seed)
+
+        self.max_steps = QSpinBox()
+        self.max_steps.setRange(1, 20)
+        self.max_steps.setValue(int(saved.get("max_steps") or 6))
+        advanced_form.addRow("Максимум шагов расчёта:", self.max_steps)
+
+        self.system_prompt = QPlainTextEdit()
+        self.system_prompt.setPlaceholderText(
+            "пусто — работает проверенный системный промпт программы")
+        self.system_prompt.setPlainText(str(saved.get("system_prompt") or ""))
+        self.system_prompt.setFixedHeight(90)
+        advanced_form.addRow("Свой системный промпт:", self.system_prompt)
+
         column.addLayout(form)
+        column.addWidget(self.advanced_box)
+
+        self._toggle_advanced(self.advanced_toggle.isChecked())
 
         # --- локальная модель: движок, файлы, запуск ---
         self.local_box = QWidget()
@@ -189,6 +244,26 @@ class AiSettingsDialog(QDialog):
                 break
 
     # ---------------- работа ----------------
+
+
+    def _toggle_advanced(self, unlocked: bool) -> None:
+        """Закрыт раздел или открыт.
+
+        По умолчанию закрыт: значения по умолчанию проверены, а крутить
+        top_p и штрафы без понимания — способ испортить ответ и не заметить.
+        Внутри всё работает по-настоящему, замок только на виду.
+        """
+        self.advanced_toggle.blockSignals(True)
+        self.advanced_toggle.setChecked(unlocked)
+        self.advanced_toggle.blockSignals(False)
+        self.advanced_toggle.setText(
+            "Продвинутые настройки: открыто" if unlocked
+            else "Продвинутые настройки: закрыто (нажмите, чтобы открыть)")
+        self.advanced_box.setVisible(unlocked)
+        if hasattr(self, "status") and unlocked:
+            self.status.setText(
+                "Продвинутые параметры включены. Если ответы станут хуже — "
+                "закройте раздел, вернутся проверенные значения.")
 
     def _toggle_key(self, shown: bool) -> None:
         self.key.setEchoMode(QLineEdit.Normal if shown else QLineEdit.Password)
@@ -275,12 +350,20 @@ class AiSettingsDialog(QDialog):
         # локальной модели ключ не нужен
         if self._is_local(self.base.text()) and not key:
             key = "local"
+        seed_text = self.seed.text().strip()
         return {
             "api_base": self.base.text().strip(),
             "api_key": key,
             "model": self.model.text().strip(),
             "max_tokens": self.max_tokens.value(),
             "temperature": round(self.temperature.value(), 2),
+            "advanced": self.advanced_toggle.isChecked(),
+            "top_p": round(self.top_p.value(), 2),
+            "presence_penalty": round(self.presence_penalty.value(), 2),
+            "frequency_penalty": round(self.frequency_penalty.value(), 2),
+            "seed": int(seed_text) if seed_text.isdigit() else None,
+            "max_steps": self.max_steps.value(),
+            "system_prompt": self.system_prompt.toPlainText().strip(),
         }
 
     def _settings(self) -> Settings:

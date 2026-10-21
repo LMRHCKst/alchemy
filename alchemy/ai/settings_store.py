@@ -75,7 +75,18 @@ def save(values: dict) -> Path:
         "model": str(values.get("model") or "").strip(),
         "max_tokens": int(values.get("max_tokens") or 900),
         "temperature": float(values.get("temperature") or 0.2),
+        # продвинутые: пишутся всегда, применяются только при advanced
+        "advanced": bool(values.get("advanced")),
+        "top_p": float(values.get("top_p") if values.get("top_p") is not None
+                       else 1.0),
+        "presence_penalty": float(values.get("presence_penalty") or 0.0),
+        "frequency_penalty": float(values.get("frequency_penalty") or 0.0),
+        "max_steps": int(values.get("max_steps") or 6),
+        "system_prompt": str(values.get("system_prompt") or ""),
     }
+    seed = values.get("seed")
+    if seed not in (None, ""):
+        clean["seed"] = int(seed)
     if not clean["api_base"]:
         raise AiError("не заполнен адрес API")
     if not clean["api_key"]:
@@ -100,12 +111,6 @@ def mask(key: str) -> str:
         return "*" * len(text)
     return f"{text[:4]}…{text[-4:]}"
 
-
-def resolve() -> Settings:
-    """Собрать настройки по цепочке: явный путь → профиль → внешний конфиг."""
-    explicit = os.environ.get("ALCHEMY_AI_CONFIG")
-    if explicit:
-        return _from_json(Path(explicit))
 
 def resolve_with_origin() -> tuple[Settings, str]:
     """Собрать настройки и сказать, откуда они взялись."""
@@ -165,12 +170,20 @@ def ensure_ready() -> tuple[Settings, str]:
 
 
 def _from_dict(data: dict, source: str) -> Settings:
+    seed = data.get("seed")
     return Settings(
         api_key=str(data.get("api_key") or "").strip(),
         api_base=str(data.get("api_base") or "https://gptunnel.ru/v1").rstrip("/"),
         model=str(data.get("model") or "").strip(),
         max_tokens=int(data.get("max_tokens") or 900),
         temperature=float(data.get("temperature") or 0.2),
+        advanced=bool(data.get("advanced")),
+        top_p=float(data.get("top_p") if data.get("top_p") is not None else 1.0),
+        presence_penalty=float(data.get("presence_penalty") or 0.0),
+        frequency_penalty=float(data.get("frequency_penalty") or 0.0),
+        seed=int(seed) if seed not in (None, "") else None,
+        max_steps=int(data.get("max_steps") or 6),
+        system_prompt=str(data.get("system_prompt") or ""),
     )
 
 
