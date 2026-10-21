@@ -101,6 +101,15 @@ QScrollArea, #Page {{
     min-height: 19px;
 }}
 
+#SidebarSearch {{
+    background-color: {COLOR_FIELD};
+    border: 1px solid {COLOR_BORDER};
+    border-radius: 6px;
+    padding: 5px 8px;
+    margin: 0 12px 8px 12px;
+    color: {COLOR_TEXT};
+}}
+
 #SidebarSubtitle {{
     color: {COLOR_TEXT_FAINT};
     font-size: {FONT_SMALL}pt;
@@ -456,22 +465,56 @@ QToolTip {{
 """
 
 
-def apply_theme(app: QApplication) -> None:
+# Соответствие тёмных цветов светлым. Стили собраны из констант выше,
+# поэтому светлая тема делается заменой: так один и тот же код рисует
+# две разные картинки, и не надо держать две копии стилей.
+LIGHT_MAP = {
+    "#1a1a1a": "#f5f6f8",   # фон окна
+    "#141414": "#ffffff",   # сайдбар
+    "#242424": "#ffffff",   # карточки
+    "#2b2b2b": "#eef1f5",   # поля и кнопки
+    "#1f1f1f": "#f0f2f6",   # наведение
+    "#e8e8e8": "#1c1d20",   # текст
+    "#9a9a9a": "#5d636c",   # вторичный текст
+    "#6d6d6d": "#8a9099",   # приглушённый
+    "#3a3a3a": "#d9dee5",   # границы
+    "#4facfe": "#1668c9",   # акцент
+    "#2c6fa8": "#d3e5fb",   # выделение
+    "#2ecc71": "#1f9d55",
+    "#f39c12": "#b9770e",
+    "#e74c3c": "#c0392b",
+}
+
+
+def stylesheet(light: bool = False) -> str:
+    """Таблица стилей для нужной темы."""
+    if not light:
+        return STYLESHEET
+    text = STYLESHEET
+    for dark, bright in LIGHT_MAP.items():
+        text = text.replace(dark, bright)
+    return text
+
+
+def apply_theme(app: QApplication, light: bool = False) -> None:
     """Применить тему к приложению."""
     app.setStyle("Fusion")
 
+    def color(name: str) -> str:
+        return LIGHT_MAP.get(name, name) if light else name
+
     palette = QPalette()
-    palette.setColor(QPalette.Window, QColor(COLOR_BG))
-    palette.setColor(QPalette.WindowText, QColor(COLOR_TEXT))
-    palette.setColor(QPalette.Base, QColor(COLOR_FIELD))
-    palette.setColor(QPalette.AlternateBase, QColor(COLOR_CARD))
-    palette.setColor(QPalette.Text, QColor(COLOR_TEXT))
-    palette.setColor(QPalette.Button, QColor(COLOR_CARD_ALT))
-    palette.setColor(QPalette.ButtonText, QColor(COLOR_TEXT))
-    palette.setColor(QPalette.Highlight, QColor(COLOR_ACCENT_DIM))
+    palette.setColor(QPalette.Window, QColor(color(COLOR_BG)))
+    palette.setColor(QPalette.WindowText, QColor(color(COLOR_TEXT)))
+    palette.setColor(QPalette.Base, QColor(color(COLOR_FIELD)))
+    palette.setColor(QPalette.AlternateBase, QColor(color(COLOR_CARD)))
+    palette.setColor(QPalette.Text, QColor(color(COLOR_TEXT)))
+    palette.setColor(QPalette.Button, QColor(color(COLOR_CARD_ALT)))
+    palette.setColor(QPalette.ButtonText, QColor(color(COLOR_TEXT)))
+    palette.setColor(QPalette.Highlight, QColor(color(COLOR_ACCENT)))
     palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
-    palette.setColor(QPalette.ToolTipBase, QColor(COLOR_CARD_ALT))
-    palette.setColor(QPalette.ToolTipText, QColor(COLOR_TEXT))
+    palette.setColor(QPalette.ToolTipBase, QColor(color(COLOR_CARD_ALT)))
+    palette.setColor(QPalette.ToolTipText, QColor(color(COLOR_TEXT)))
     app.setPalette(palette)
 
-    app.setStyleSheet(STYLESHEET)
+    app.setStyleSheet(stylesheet(light))

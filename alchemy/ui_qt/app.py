@@ -10,14 +10,15 @@ import sys
 from dataclasses import dataclass
 
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor, QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QMainWindow, QStackedWidget, QVBoxLayout, QWidget,
+    QApplication, QHBoxLayout, QLabel, QLineEdit, QListWidget,
+    QListWidgetItem, QMainWindow, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from ..core.results import Result
 from ..ui import theme
+from . import prefs
 
 from ..ui.tabs_advanced import (
     ColligativeTab, ElectrolysisTab, EquilibriumTab, GraphsTab, HandbookTab,
@@ -183,6 +184,187 @@ class AlchemyApp(QMainWindow):
 
     # ---------------- меню и экспорт ----------------
 
+
+    # ---------------- поиск, история, тема ----------------
+
+    def _filter_modules(self, text: str) -> None:
+        """Оставить в меню только модули, подходящие под запрос.
+
+        Ищем и по названию, и по описанию: «гидролиз» найдётся и по
+        заголовку, и по подсказке. Заголовки разделов прячутся, если в
+        разделе не осталось ни одного модуля.
+        """
+        query = text.strip().lower()
+        visible_by_group: dict[str, int] = {}
+        current_group = ""
+
+        for index in range(self.nav.count()):
+            item = self.nav.item(index)
+            cls = item.data(Qt.UserRole)
+            if cls is None:
+                title = item.text()
+                if title:
+                    current_group = title
+                continue
+            spec_title = item.text().lower()
+            tooltip = (item.toolTip() or "").lower()
+            matches = (not query or query in spec_title or query in tooltip)
+            item.setHidden(not matches)
+            if matches:
+                visible_by_group[current_group] =                     visible_by_group.get(current_group, 0) + 1
+
+        # заголовки и отступы показываем только у непустых разделов
+        current_group = ""
+        for index in range(self.nav.count()):
+            item = self.nav.item(index)
+            if item.data(Qt.UserRole) is not None:
+                continue
+            title = item.text()
+            if title:
+                current_group = title
+                item.setHidden(bool(query) and not visible_by_group.get(title))
+            else:
+                # пустой пункт — отступ или линия: прячем вместе с разделом
+                item.setHidden(bool(query) and not visible_by_group.get(current_group))
+
+    def _focus_search(self) -> None:
+        """Ctrl+F: перейти к поиску."""
+        self.search.setFocus()
+        self.search.selectAll()
+
+    def _remember_tab(self, cls: type) -> None:
+        """Запомнить переход для истории навигации."""
+        if not hasattr(self, "_nav_history"):
+            self._nav_history: list[type] = []
+            self._nav_position = -1
+        if self._nav_position >= 0 and \
+                self._nav_position < len(self._nav_history) and \
+                self._nav_history[self._nav_position] is cls:
+            return
+        del self._nav_history[self._nav_position + 1:]
+        self._nav_history.append(cls)
+        self._nav_position = len(self._nav_history) - 1
+
+    def _go_back(self) -> None:
+        """Назад по истории переходов."""
+        if getattr(self, "_nav_position", -1) <= 0:
+            return
+        self._nav_position -= 1
+        self._select_tab(self._nav_history[self._nav_position])
+
+    def _go_forward(self) -> None:
+        """Вперёд по истории переходов."""
+        history = getattr(self, "_nav_history", [])
+        if getattr(self, "_nav_position", -1) + 1 >= len(history):
+            return
+        self._nav_position += 1
+        self._select_tab(history[self._nav_position])
+
+    def _select_tab(self, cls: type) -> None:
+        """Открыть вкладку, не добавляя её в историю."""
+        item = self._items.get(cls)
+        if item is None:
+            return
+        self.nav.blockSignals(True)
+        self.nav.setCurrentItem(item)
+        self.nav.blockSignals(False)
+        self.open_tab(cls)
+        self._remember_tab(cls)
+
+    def _toggle_theme(self, light: bool) -> None:
+        """Переключить тему и запомнить выбор."""
+        from . import prefs
+
+        prefs.set_light(light)
+        theme.apply_theme(QApplication.instance(), light=light)
+        self.status_label.setText(
+            "Светлая тема" if light else "Тёмная тема")
+
+    def build_latex_document(self) -> str:
+        """Собрать LaTeX-документ из текущего расчёта."""
+        tab = self.current_tab()
+        view = getattr(tab, "result_view", None)
+        result = getattr(view, "last_result", None) if view is not None else None
+        if result is None:
+            self._warn("Сначала выполните расчёт.")
+            return
+
+        math = getattr(view, "_latex_text", "") or ""
+        title = getattr(tab, "title", "Расчёт")
+
+        lines = [
+            r"\documentclass[12pt]{article}",
+            r"\usepackage[T2A]{fontenc}",
+            r"\usepackage[utf8]{inputenc}",
+            r"\usepackage[russian]{babel}",
+            r"\usepackage{amsmath}",
+            r"\begin{document}",
+            "",
+            rf"\section*{{{title}}}",
+            "",
+        ]
+        if math:
+            lines.append(r"\begin{equation*}")
+            lines.append(math)
+            lines.append(r"\end{equation*}")
+            lines.append("")
+
+        value = getattr(result, "value", None)
+        if value is not None and not isinstance(value, (dict, list)):
+            unit = getattr(result, "unit", "") or ""
+            lines.append(rf"\noindent\textbf{{Результат:}} {value} {unit}".strip())
+            lines.append("")
+
+        method = getattr(result, "method", "") or ""
+        if method:
+            lines.append(rf"\noindent\textit{{{method}}}")
+            lines.append("")
+
+        steps = getattr(result, "steps", []) or []
+        if steps:
+            lines.append(r"\subsection*{Ход расчёта}")
+            lines.append(r"\begin{enumerate}")
+            for step in steps:
+                safe = str(step).replace("_", r"\_").replace("%", r"\%")
+                lines.append(rf"  \item {safe}")
+            lines.append(r"\end{enumerate}")
+            lines.append("")
+
+        warnings = getattr(result, "warnings", []) or []
+        if warnings:
+            lines.append(r"\subsection*{Предупреждения}")
+            lines.append(r"\begin{itemize}")
+            for warning in warnings:
+                safe = str(warning).replace("_", r"\_").replace("%", r"\%")
+                lines.append(rf"  \item {safe}")
+            lines.append(r"\end{itemize}")
+            lines.append("")
+
+        lines.append(r"\end{document}")
+        return "\n".join(lines)
+
+    def export_latex(self) -> None:
+        """Сохранить текущий расчёт в файл LaTeX."""
+        from PySide6.QtWidgets import QFileDialog
+
+        text = self.build_latex_document()
+        if not text:
+            return
+
+        tab = self.current_tab()
+        title = getattr(tab, "title", "Расчёт")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Экспорт в LaTeX", f"{title}.tex", "LaTeX (*.tex)")
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(text)
+        except OSError as exc:
+            self._warn(f"Не удалось сохранить: {exc}")
+            return
+        self.status_label.setText(f"Сохранено: {path}")
+
     def _build_menu(self) -> None:
         """Меню: выгрузка отчёта в DOCX и копирование LaTeX."""
         bar = self.menuBar()
@@ -199,9 +381,30 @@ class AlchemyApp(QMainWindow):
         action = file_menu.addAction("Выход")
         action.triggered.connect(self.close)
 
+        action = file_menu.addAction("Экспорт расчёта в LaTeX…")
+        action.triggered.connect(self.export_latex)
+
         edit_menu = bar.addMenu("Правка")
         action = edit_menu.addAction("Копировать LaTeX")
         action.triggered.connect(self.copy_latex)
+
+        action = edit_menu.addAction("Поиск по модулям")
+        action.setShortcut(QKeySequence("Ctrl+F"))
+        action.triggered.connect(self._focus_search)
+
+        action = edit_menu.addAction("Назад")
+        action.setShortcut(QKeySequence("Alt+Left"))
+        action.triggered.connect(self._go_back)
+
+        action = edit_menu.addAction("Вперёд")
+        action.setShortcut(QKeySequence("Alt+Right"))
+        action.triggered.connect(self._go_forward)
+
+        view_menu = bar.addMenu("Вид")
+        self._light_action = view_menu.addAction("Светлая тема")
+        self._light_action.setCheckable(True)
+        self._light_action.setChecked(prefs.is_light())
+        self._light_action.toggled.connect(self._toggle_theme)
 
         help_menu = bar.addMenu("Справка")
         action = help_menu.addAction("О программе")
@@ -359,6 +562,18 @@ class AlchemyApp(QMainWindow):
         subtitle.setObjectName("SidebarSubtitle")
         column.addWidget(subtitle)
 
+        self.search = QLineEdit()
+        self.search.setObjectName("SidebarSearch")
+        self.search.setPlaceholderText("Поиск по модулям (Ctrl+F)")
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._filter_modules)
+        column.addWidget(self.search)
+
+        for number in range(1, 10):
+            shortcut = QShortcut(QKeySequence(f"Ctrl+{number}"), self)
+            shortcut.activated.connect(
+                lambda position=number - 1: self._open_by_number(position))
+
         self.nav = QListWidget()
         self.nav.setObjectName("SidebarList")
         self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -452,6 +667,20 @@ class AlchemyApp(QMainWindow):
         cls = current.data(Qt.UserRole)
         if cls is not None:
             self.open_tab(cls)
+            self._remember_tab(cls)
+
+    def _open_by_number(self, position: int) -> None:
+        """Ctrl+1…9 — первые девять модулей списка."""
+        modules = [item for item in self._items.values()]
+        ordered: list = []
+        for index in range(self.nav.count()):
+            item = self.nav.item(index)
+            cls = item.data(Qt.UserRole)
+            if cls is not None and not item.isHidden():
+                ordered.append(cls)
+        if 0 <= position < len(ordered):
+            self._select_tab(ordered[position])
+            self._remember_tab(ordered[position])
 
     def open_tab(self, cls: type) -> None:
         """Открыть вкладку, создав её при первом обращении."""
