@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
-    QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
+    QComboBox, QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
     QScrollArea, QTextBrowser, QVBoxLayout, QWidget,
 )
 
+from ..ai import history as chat_history
 from ..ai import settings_store
 from ..ai.agent import Agent, Answer
 from ..ai.client import AiError, ChatClient
@@ -67,6 +68,8 @@ class AiTab(QWidget):
         self._answer: Answer | None = None
         self._setup_error = ""
         self._origin = ""
+        self._chat_id = ""
+        self._transcript: list[dict] = []
 
         self._build()
 
@@ -204,6 +207,31 @@ class AiTab(QWidget):
         buttons.addStretch(1)
         column.addWidget(row)
 
+        history_row = QWidget()
+        history_layout = QHBoxLayout(history_row)
+        history_layout.setContentsMargins(0, 0, 0, 0)
+        history_layout.setSpacing(8)
+
+        self.history_combo = QComboBox()
+        self.history_combo.setMinimumWidth(320)
+        self.history_combo.setToolTip("Сохранённые диалоги")
+        history_layout.addWidget(self.history_combo, 1)
+
+        self.load_button = QPushButton("Открыть")
+        self.load_button.setFixedWidth(110)
+        self.load_button.setMinimumHeight(34)
+        self.load_button.clicked.connect(self._load_chat)
+        history_layout.addWidget(self.load_button)
+
+        self.forget_button = QPushButton("Удалить чат")
+        self.forget_button.setFixedWidth(140)
+        self.forget_button.setMinimumHeight(34)
+        self.forget_button.clicked.connect(self._delete_chat)
+        history_layout.addWidget(self.forget_button)
+
+        column.addWidget(history_row)
+        self._refresh_history()
+
     def _build_answer(self, column: QVBoxLayout) -> None:
         card = Card(title="Ответ")
         self.answer_view = QTextBrowser()
@@ -268,11 +296,80 @@ class AiTab(QWidget):
                     widget.deleteLater()
         self._build()
 
+
+    # ---------------- история ----------------
+
+    def _refresh_history(self) -> None:
+        """Перечитать список сохранённых диалогов."""
+        self.history_combo.clear()
+        self.history_combo.addItem("— новый диалог —", "")
+        for item in chat_history.list_chats():
+            label = f"{item['title'][:52]} · {item['updated'][:16]}"
+            self.history_combo.addItem(label, item["id"])
+        if self._chat_id:
+            position = self.history_combo.findData(self._chat_id)
+            if position >= 0:
+                self.history_combo.setCurrentIndex(position)
+
+    def _load_chat(self) -> None:
+        """Открыть выбранный диалог: вернуть контекст и показать переписку."""
+        chat_id = self.history_combo.currentData()
+        if not chat_id:
+            self._chat_id = ""
+            self._history = []
+            self._transcript = []
+            self.answer_view.setPlainText("Новый диалог.")
+            return
+
+        data = chat_history.load(chat_id)
+        if not data:
+            self.answer_view.setPlainText("Не удалось прочитать диалог.")
+            return
+
+        messages = data.get("messages") or []
+        self._chat_id = chat_id
+        self._history = list(messages)[-8:]
+        self._transcript = list(messages)
+
+        lines = []
+        for message in messages:
+            role = "Вы" if message.get("role") == "user" else "Модель"
+            lines.append(f"{role}: {message.get('content') or ''}")
+        self.answer_view.setPlainText("\n\n".join(lines))
+        if hasattr(self, "_status"):
+            self._status.setText(
+                f"Открыт диалог от {data.get('updated', '')} · "
+                f"{self._status_text()}")
+
+    def _delete_chat(self) -> None:
+        """Удалить выбранный диалог с диска."""
+        chat_id = self.history_combo.currentData()
+        if not chat_id:
+            return
+        chat_history.delete(chat_id)
+        if chat_id == self._chat_id:
+            self._chat_id = ""
+            self._history = []
+            self._transcript = []
+        self._refresh_history()
+
+    def _save_chat(self, model: str) -> None:
+        """Сохранить текущий диалог, обновив файл, если он уже есть."""
+        if not self._transcript:
+            return
+        path = chat_history.save(self._transcript, model=model,
+                                 chat_id=self._chat_id)
+        if not self._chat_id:
+            self._chat_id = path.stem
+        self._refresh_history()
+
     def reset(self) -> None:
         self.question.clear()
         self.answer_view.clear()
         self.trace_view.clear()
         self._history = []
+        self._transcript = []
+        self._chat_id = ""
         self._answer = None
         if self._model_line:
             self._status.setText(self._status_text())
@@ -327,6 +424,14 @@ class AiTab(QWidget):
         self._history.append({"role": "user", "content": question})
         self._history.append({"role": "assistant", "content": answer.text})
         self._history = self._history[-8:]
+
+        # полная переписка сохраняется на диск, в контекст идут последние ходы
+        self._transcript.append({"role": "user", "content": question})
+        self._transcript.append({"role": "assistant", "content": answer.text})
+        try:
+            self._save_chat(self._model_line)
+        except OSError:
+            pass
 
     def _on_error(self, message: str) -> None:
         self.ask_button.setEnabled(True)

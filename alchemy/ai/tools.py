@@ -23,6 +23,9 @@ from ..core.results import Result
 from ..engines import acidbase, balancer, classification, electrochemistry
 from ..engines import equilibrium, gases, hardness, kinetics, organic, oxidation
 from ..engines import qualitative, redox, solutions, stoichiometry, thermo
+from ..engines import hydrolysis as hydrolysis_engine
+from ..engines import ioniceq
+from ..engines import valence as valence_engine
 
 #: сколько шагов расчёта показывать модели
 MAX_STEPS = 4
@@ -501,9 +504,63 @@ TOOLS: list[dict] = [
              "k": {**_N, "description": "константа скорости"},
              "c0": {**_N, "description": "начальная концентрация"}},
             ["order", "k"]),
+
+    _schema("ionic_equation", "Ионное уравнение: полное и сокращённое, "
+            "из молекулярного вида.",
+            {"equation": {**_S, "description": "молекулярное уравнение"}},
+            ["equation"]),
+
+    _schema("hydrolysis", "Гидролиз соли: тип, среда, константа, степень, pH.",
+            {"salt": {**_S, "description": "формула соли"},
+             "concentration": {**_N,
+                               "description": "моль/л, по умолчанию 0.1"}},
+            ["salt"]),
+
+    _schema("valency", "Валентности элементов в бинарном соединении.",
+            {"formula": {**_S, "description": "формула, например Fe2O3"}},
+            ["formula"]),
+
+    _schema("formula_from_valence", "Формула по валентностям двух элементов.",
+            {"first": {**_S, "description": "первый элемент"},
+             "valency_first": {**_N, "description": "его валентность"},
+             "second": {**_S, "description": "второй элемент"},
+             "valency_second": {**_N, "description": "его валентность"}},
+            ["first", "valency_first", "second", "valency_second"]),
 ]
 
 #: имя → функция
+def ionic_equation(equation: str) -> ToolResult:
+    """Полное и сокращённое ионное уравнение из молекулярного."""
+    if not str(equation or "").strip():
+        return ToolResult(ok=False, text="ОТКАЗ: пустое уравнение")
+    return _call(ioniceq.ionic_equation, equation=equation)
+
+
+def hydrolysis(salt: str, concentration: float = 0.1) -> ToolResult:
+    """Гидролиз соли: тип, среда, константа, степень, pH."""
+    if not str(salt or "").strip():
+        return ToolResult(ok=False, text="ОТКАЗ: пустая формула соли")
+    return _call(hydrolysis_engine.hydrolysis, salt=salt,
+                 concentration=concentration or 0.1)
+
+
+def valency(formula: str) -> ToolResult:
+    """Валентности элементов в бинарном соединении."""
+    if not str(formula or "").strip():
+        return ToolResult(ok=False, text="ОТКАЗ: пустая формула")
+    return _call(valence_engine.valences, formula=formula)
+
+
+def formula_from_valence(first: str, valency_first: int, second: str,
+                         valency_second: int) -> ToolResult:
+    """Составить формулу по валентностям двух элементов."""
+    return _call(valence_engine.formula_from_valence, first=first,
+                 valency_first=int(valency_first), second=second,
+                 valency_second=int(valency_second))
+
+
+
+
 REGISTRY: dict[str, Callable[..., ToolResult]] = {
     "molar_mass": molar_mass,
     "water_of_crystallization": water_of_crystallization,
@@ -530,7 +587,12 @@ REGISTRY: dict[str, Callable[..., ToolResult]] = {
     "nernst_potential": nernst_potential,
     "galvanic_cell": galvanic_cell,
     "half_life": half_life,
+    "ionic_equation": ionic_equation,
+    "hydrolysis": hydrolysis,
+    "valency": valency,
+    "formula_from_valence": formula_from_valence,
 }
+
 
 
 def call_tool(name: str, arguments: str | dict) -> ToolResult:

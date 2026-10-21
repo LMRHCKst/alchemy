@@ -17,7 +17,10 @@ from ..engines import equilibrium as EQ
 from ..engines import hardness as H
 from ..engines import oxidation as OX
 from ..engines import qualitative as Q
+from ..engines import hydrolysis as HD
+from ..engines import ioniceq as IE
 from ..engines import redox as RX
+from ..engines import valence as VL
 from .components import BaseTab, Card, LabeledCombo, LabeledEntry
 
 
@@ -438,3 +441,129 @@ class ClassesTab(BaseTab):
             return CL.genetic_link(self.fields["first"].get(),
                                    self.fields["second"].get())
         return CL.classes_table()
+
+
+# ==========================================================================
+# 8. Валентность
+# ==========================================================================
+
+
+class ValenceTab(BaseTab):
+    """Валентность по формуле и формула по валентностям."""
+
+    title = "Валентность"
+    description = ("Валентности элементов по формуле бинарного соединения "
+                   "и обратная задача: собрать формулу из валентностей.")
+    action_label = "Определить"
+    history_action = "Валентность"
+
+    MODES = ["Валентность по формуле", "Формула по валентностям"]
+
+    def build_inputs(self, parent):
+        self.mode = LabeledCombo(parent, "Задача:", self.MODES, width=320)
+        self.mode.pack(fill="x", pady=4)
+        self.mode.combo.configure(command=lambda: self._rebuild())
+
+        self.area = ctk.CTkFrame(parent, fg_color="transparent")
+        self.area.pack(fill="x", pady=6)
+        self._rebuild()
+
+    def _rebuild(self):
+        for widget in self.area.winfo_children():
+            widget.destroy()
+        self.fields = {}
+        mode = self.mode.get()
+
+        if mode == self.MODES[0]:
+            _field(self.area, self.fields, "formula", "Формула",
+                   "Fe2O3", width=220)
+            hint = ("Считается для двух элементов: произведение числа "
+                    "атомов на валентность одинаково у обоих.")
+        else:
+            row = ctk.CTkFrame(self.area, fg_color="transparent")
+            row.pack(fill="x", pady=3)
+            _field(row, self.fields, "first", "Элемент", "Al", width=120)
+            _field(row, self.fields, "valency_first", "Валентность", "3",
+                   width=110)
+            _field(row, self.fields, "second", "Элемент", "O", width=120)
+            _field(row, self.fields, "valency_second", "Валентность", "2",
+                   width=110)
+            hint = ("Индексы обратны валентностям: Al(III) и O(II) дают "
+                    "Al2O3.")
+
+        ctk.CTkLabel(self.area, text=hint, font=("Segoe UI", 10),
+                     text_color="#9a9a9a", anchor="w",
+                     wraplength=760).pack(fill="x", pady=(6, 0))
+        self.bind_enter()
+
+    def calculate(self) -> Result:
+        if self.mode.get() == self.MODES[0]:
+            return VL.valences(self.fields["formula"].get())
+        return VL.formula_from_valence(
+            self.fields["first"].get().strip(),
+            int(self.fields["valency_first"].get() or 0),
+            self.fields["second"].get().strip(),
+            int(self.fields["valency_second"].get() or 0))
+
+
+# ==========================================================================
+# 9. Ионные уравнения
+# ==========================================================================
+
+
+class IonicTab(BaseTab):
+    """Молекулярное уравнение превращается в ионное и сокращённое."""
+
+    title = "Ионные уравнения"
+    description = ("Из молекулярного уравнения — полное и сокращённое "
+                   "ионное. Сильные электролиты записываются ионами, "
+                   "слабые и нерастворимые — молекулами.")
+    action_label = "Превратить"
+    history_action = "Ионные уравнения"
+
+    def build_inputs(self, parent):
+        _field(parent, self.fields, "equation", "Молекулярное уравнение",
+               "NaOH + HCl = NaCl + H2O", width=520)
+        ctk.CTkLabel(
+            parent,
+            text="Подходят реакции обмена: нейтрализация, осаждение, "
+                 "вытеснение слабой кислоты.",
+            font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+            wraplength=760).pack(fill="x", pady=(6, 0))
+        self.bind_enter()
+
+    def calculate(self) -> Result:
+        return IE.ionic_equation(self.fields["equation"].get())
+
+
+# ==========================================================================
+# 10. Гидролиз солей
+# ==========================================================================
+
+
+class HydrolysisTab(BaseTab):
+    """Тип гидролиза, среда, константа и степень."""
+
+    title = "Гидролиз солей"
+    description = ("Гидролизуется ли соль, по какому иону, какая среда, "
+                   "константа и степень гидролиза, pH раствора.")
+    action_label = "Рассчитать"
+    history_action = "Гидролиз соли"
+
+    def build_inputs(self, parent):
+        _field(parent, self.fields, "salt", "Формула соли",
+               "Na2CO3", width=240)
+        _field(parent, self.fields, "concentration", "Концентрация, моль/л",
+               "0.1", width=160)
+        ctk.CTkLabel(
+            parent,
+            text="Если константы слабого электролита нет в справочнике, "
+                 "тип гидролиза и среда определяются, а степень и pH — нет.",
+            font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+            wraplength=760).pack(fill="x", pady=(6, 0))
+        self.bind_enter()
+
+    def calculate(self) -> Result:
+        return HD.hydrolysis(self.fields["salt"].get(),
+                             float(self.fields["concentration"].get()
+                                   .replace(",", ".") or 0.1))

@@ -33,6 +33,7 @@ from ..ui.tabs_organic import (       # noqa: E402
     CombustionTab, OrganicClassesTab, OrganicReactionsTab,
 )
 from ..ui.tabs_school import (
+    HydrolysisTab, IonicTab, ValenceTab,
     BondingTab, ClassesTab, HardnessTab, OxidationTab, QualitativeTab,
     RedoxTab, ShiftTab,
 )
@@ -87,6 +88,9 @@ BASIC_TABS: list[TabSpec] = [
             OxidationTab, "basic"),
     TabSpec("Классы и названия", "Класс вещества и номенклатура",
             ClassesTab, "basic"),
+    TabSpec("Валентность", "Валентность по формуле и обратно", ValenceTab, "valence"),
+    TabSpec("Ионные уравнения", "Молекулярное в ионное", IonicTab, "ionic"),
+    TabSpec("Гидролиз солей", "Среда, константа, степень", HydrolysisTab, "hydrolysis"),
     TabSpec("Органические классы", "Класс, гомологи, изомеры", 
             OrganicClassesTab, "basic"),
     TabSpec("Формула по сгоранию", "Формула из продуктов сгорания",
