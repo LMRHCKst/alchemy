@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from ..core.errors import InputError
@@ -205,8 +206,17 @@ def theoretical_yield(equation: str, limiting_amount: float,
     else:
         raise StoichiometryError(f"Неизвестный способ задания количества: {amount_kind}")
 
+    if not math.isfinite(n_lim):
+        raise StoichiometryError(
+            f"Количество лимитирующего реагента должно быть конечным числом, "
+            f"а не {n_lim}")
     if n_lim < 0:
         raise StoichiometryError("Количество не может быть отрицательным")
+    if n_lim == 0:
+        raise StoichiometryError(
+            f"Количество {lim.text} равно нулю: реакции нет, считать выход "
+            f"нечего. Проверьте исходные данные — возможно, перепутаны "
+            f"вещества или не заполнена масса.")
 
     n_target = n_lim * target.coefficient / lim.coefficient
 

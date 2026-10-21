@@ -35,10 +35,15 @@ class Substance:
 
     @property
     def formula(self) -> str:
-        """Формула без указания состояния: «H2O(ж)» -> «H2O»."""
-        if "(" in self.key:
-            return self.key.split("(")[0]
-        return self.key
+        """Формула без указания состояния: «H2O(ж)» -> «H2O».
+
+        Раньше здесь стояло `key.split("(")[0]`, и для «Cu(OH)2(тв)»
+        получалось «Cu»: молярная масса считалась по одному меди.
+        Теперь отрезается только известное обозначение состояния.
+        """
+        from ..core.formula import split_state
+
+        return split_state(self.key)[0]
 
     def __str__(self) -> str:
         return f"{self.name} [{self.key}]"

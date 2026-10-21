@@ -609,8 +609,22 @@ def decay_chain(initial_amount: float, half_lives: list[float],
     lambdas = [LN2 / t for t in half_lives]
     n_stages = len(lambdas)
 
-    # Численное решение системы dN_i/dt = λ_{i-1}·N_{i-1} − λ_i·N_i
-    steps = 2000
+    # Численное решение системы dN_i/dt = λ_{i-1}·N_{i-1} − λ_i·N_i.
+    # Шаг привязан к самому быстрому звену: у схемы Рунге — Кутты 4 порядок
+    # устойчив, пока λ·dt меньше примерно 2.8. При периоде 10⁻⁶ с и времени
+    # 1 с прежний фиксированный шаг давал переполнение и NaN в ответе.
+    fastest = max(lambdas)
+    dt_max_stable = 0.1 / fastest
+    dt = min(time / 200.0, dt_max_stable)
+    steps = int(math.ceil(time / dt))
+    limit = 200_000
+    if steps > limit:
+        half_lives_passed = time * fastest / LN2
+        raise NuclearError(
+            f"Цепочка слишком жёсткая для численного метода: самое быстрое "
+            f"звено (T½ = {min(half_lives):g}) за {time:g} проходит "
+            f"{half_lives_passed:.0f} периодов полураспада. Нужен больший "
+            f"интервал времени или меньше звеньев.")
     dt = time / steps
     y = [initial_amount] + [0.0] * n_stages   # последний элемент — стабильный остаток
 

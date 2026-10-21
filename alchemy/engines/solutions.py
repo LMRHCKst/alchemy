@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from ..core.errors import DomainError, InputError
@@ -74,12 +75,22 @@ class Solution:
     def __post_init__(self):
         # Все проверки приводятся к одному типу SolutionError, чтобы
         # вызывающий код перехватывал их единообразно
+        for name, value in (("Масса растворённого вещества", self.solute_mass),
+                            ("Масса растворителя", self.solvent_mass),
+                            ("Молярная масса вещества", self.solute_molar_mass),
+                            ("Молярная масса растворителя",
+                             self.solvent_molar_mass)):
+            if not math.isfinite(value):
+                raise SolutionError(f"{name}: нужно конечное число, а не {value}")
         if self.solute_mass < 0:
             raise SolutionError("Масса растворённого вещества не может быть отрицательной")
         if self.solvent_mass <= 0:
             raise SolutionError("Масса растворителя должна быть больше нуля")
         if self.solute_molar_mass <= 0:
             raise SolutionError("Молярная масса должна быть больше нуля")
+        if self.solvent_molar_mass <= 0:
+            raise SolutionError(
+                "Молярная масса растворителя должна быть больше нуля")
 
         total = self.total_mass
         if self.solute_mass > total:
@@ -1016,6 +1027,14 @@ def freezing_point_depression(solvent_name: str, molality: float,
 
     dT = i * solvent.Kf * molality
     t_freeze = solvent.Tf - dT
+
+    if t_freeze <= 0:
+        raise SolutionError(
+            f"При моляльности {molality:g} моль/кг раствор замёрз бы при "
+            f"{t_freeze:.1f} К — ниже абсолютного нуля. Линейный закон "
+            f"ΔT = i·Kf·b здесь неприменим: для воды он работает примерно "
+            f"до 1 моль/кг, дальше нужны опытные данные."
+        )
 
     res = Result(
         value=t_freeze,

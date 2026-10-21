@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 
 from ..core.errors import ConvergenceError, DomainError, InputError
@@ -97,6 +98,77 @@ def _water_dielectric_constant(temperature_k: float) -> float:
     return (87.740 - 0.40008 * c + 9.398e-4 * c ** 2 - 1.410e-6 * c ** 3)
 
 
+def _check_positive(value: float, name: str) -> float:
+    """Проверить, что число конечно и положительно.
+
+    Молча пропущенный NaN хуже ошибки: он доезжает до ответа, и человек
+    читает «pH = nan» вместо объяснения, что не так с вводом.
+    """
+    if not math.isfinite(value):
+        raise AcidBaseError(f"{name} должно быть конечным числом, а не {value}")
+    if value <= 0:
+        raise AcidBaseError(f"{name} должно быть больше нуля, а не {value}")
+    return value
+
+
+def _check_charge(ion: str) -> float:
+    """Заряд иона из его записи; неизвестный ион — отказ, а не ноль.
+
+    Внутренние метки вида «H3PO4_2» (ступень равновесия) тоже понимаются:
+    хвост из подчёркивания и цифры отбрасывается.
+    """
+    from ..core.formula import parse
+
+    name = ion.strip()
+    # внутренние метки ступеней выглядят как «H3PO4_2»: снимаем только
+    # хвост из подчёркивания и цифр, иначе опечатка в имени иона
+    # («Cl_typo^-») превратится в валидный «Cl» и пройдёт молча
+    variants = [name]
+    stripped = re.sub(r"_\d+$", "", name)
+    if stripped != name:
+        variants.append(stripped)
+
+    for candidate in variants:
+        try:
+            return parse(candidate, allow_charge=True).charge
+        except Exception:
+            continue
+    raise AcidBaseError(
+        f"Не удалось разобрать ион «{ion}». "
+        f"Заряд записывается так: Na^+, Cl^-, SO4^2-"
+    )
+
+
+def _check_ionic_strength(value: float) -> float:
+    """Ионная сила: конечная и неотрицательная."""
+    if not math.isfinite(value):
+        raise AcidBaseError(f"Ионная сила должна быть конечным числом, а не {value}")
+    if value < 0:
+        raise AcidBaseError(f"Ионная сила не может быть отрицательной: {value}")
+    return value
+
+
+def _activity_limit_warnings(res: Result, ionic_strength_: float) -> None:
+    """Предупредить, когда модель активностей вышла за свои границы.
+
+    Уравнение Дебая — Хюккеля с поправкой на размер иона работает примерно
+    до I = 0.1 моль/л, формула Дэвиса — до 0.5. Дальше нужен Питцер или
+    экспериментальные коэффициенты; молчать об этом нельзя.
+    """
+    if ionic_strength_ > 0.5:
+        res.with_warning(
+            f"Ионная сила {ionic_strength_:.2f} моль/л выше предела формулы "
+            f"Дэвиса (0.5). Коэффициенты активности здесь оценочные, "
+            f"нужна модель Питцера или опытные данные."
+        )
+    elif ionic_strength_ > 0.1:
+        res.with_warning(
+            f"Ионная сила {ionic_strength_:.2f} моль/л выше области, где "
+            f"уравнение Дебая — Хюккеля точно: до 0.1. Для этой концентрации "
+            f"коэффициенты активности приблизительны."
+        )
+
+
 def ionic_strength(concentrations: dict[str, float],
                    charges: dict[str, float] | None = None) -> float:
     """Ионная сила раствора I = ½·Σ cᵢzᵢ².
@@ -105,17 +177,13 @@ def ionic_strength(concentrations: dict[str, float],
         concentrations: {ион: концентрация, моль/л}
         charges: {ион: заряд}. Если не задан, заряд извлекается из записи иона.
     """
-    from ..core.formula import parse
-
     total = 0.0
     for ion, c in concentrations.items():
+        _check_positive(c, f"Концентрация иона «{ion}»")
         if charges and ion in charges:
             z = charges[ion]
         else:
-            try:
-                z = parse(ion, allow_charge=True).charge
-            except Exception:
-                z = 0
+            z = _check_charge(ion)
         total += c * z * z
     return 0.5 * total
 
@@ -164,8 +232,9 @@ def activity_coefficient(charge: float, ionic_strength_: float,
         raise AcidBaseError(f"Неизвестная модель активности: {model}")
 
     gamma = 10.0 ** log_gamma
-    # Коэффициент активности не может превышать единицу в водных растворах
-    return min(gamma, 1.0)
+    # При больших ионных силах γ бывает больше единицы (высаливание).
+    # Обрезать её единицей — значит прятать это от пользователя.
+    return gamma
 
 
 def activity_coefficients_for(concentrations: dict[str, float],
@@ -173,13 +242,9 @@ def activity_coefficients_for(concentrations: dict[str, float],
                               ) -> tuple[float, dict[str, float]]:
     """Ионная сила и коэффициенты активности для набора ионов."""
     I = ionic_strength(concentrations)
-    from ..core.formula import parse
     gammas: dict[str, float] = {}
-    for ion in concentrations:
-        try:
-            z = parse(ion, allow_charge=True).charge
-        except Exception:
-            z = 0
+    for ion, c in concentrations.items():
+        z = _check_charge(ion)
         gammas[ion] = activity_coefficient(
             z, I, ion_size_nm=ion_size(ion), temperature_k=temperature_k)
     return I, gammas
@@ -198,8 +263,7 @@ def strong_acid_ph(concentration: float, temperature_k: float = 298.15,
     Для концентраций ниже 10⁻⁶ моль/л учитывается диссоциация воды: ответ
     стремится к pH нейтральной среды, а не уходит в бесконечность.
     """
-    if concentration <= 0:
-        raise AcidBaseError("Концентрация должна быть больше нуля")
+    _check_positive(concentration, "Концентрация")
 
     pkw = ADB.pkw_at(temperature_k)
 
@@ -232,6 +296,7 @@ def strong_acid_ph(concentration: float, temperature_k: float = 298.15,
     res.with_meta("activity", a_h)
     res.with_meta("gamma", gamma)
     res.with_meta("ionic_strength", ionic_strength_)
+    _activity_limit_warnings(res, ionic_strength_)
 
     if concentration > 1.0:
         res.with_warning(
@@ -256,10 +321,8 @@ def strong_base_ph(concentration: float, temperature_k: float = 298.15,
         concentration: молярная концентрация основания, моль/л.
         n_hydroxide: число гидроксид-ионов в формульной единице (для Ca(OH)₂ = 2).
     """
-    if concentration <= 0:
-        raise AcidBaseError("Концентрация должна быть больше нуля")
-    if n_hydroxide <= 0:
-        raise AcidBaseError("Число гидроксид-ионов должно быть больше нуля")
+    _check_positive(concentration, "Концентрация")
+    _check_positive(n_hydroxide, "Число гидроксид-ионов")
 
     pkw = ADB.pkw_at(temperature_k)
     c_oh = concentration * n_hydroxide
@@ -292,6 +355,7 @@ def strong_base_ph(concentration: float, temperature_k: float = 298.15,
     res.with_meta("poh", poh)
     res.with_meta("gamma", gamma)
     res.with_meta("ionic_strength", ionic_strength_)
+    _activity_limit_warnings(res, ionic_strength_)
 
     if c_oh > 1.0:
         res.with_warning(
@@ -310,10 +374,8 @@ def weak_acid_ph(concentration: float, ka: float,
     Уравнение: [H⁺]² + Ka·[H⁺] − Ka·C = 0, решается точно, без приближения
     «[H⁺] = √(Ka·C)», которое врёт при C/Ka < 100.
     """
-    if concentration <= 0:
-        raise AcidBaseError("Концентрация должна быть больше нуля")
-    if ka <= 0:
-        raise AcidBaseError("Ka должна быть больше нуля")
+    _check_positive(concentration, "Концентрация")
+    _check_positive(ka, "Ka")
 
     if ionic_strength_ is None:
         ionic_strength_ = 0.5 * concentration
@@ -345,6 +407,8 @@ def weak_acid_ph(concentration: float, ka: float,
     res.with_meta("h_concentration", h)
     res.with_meta("alpha", alpha)
     res.with_meta("gamma", gamma)
+    res.with_meta("ionic_strength", ionic_strength_)
+    _activity_limit_warnings(res, ionic_strength_)
 
     # Проверка применимости приближения √(Ka·C)
     approx = math.sqrt(ka * concentration)
@@ -675,6 +739,35 @@ def ph_of_acid(acid_query: str, concentration: float,
                              include_activity=include_activity)
         res.label = f"pH раствора {acid.name.lower()}"
         res.with_step(f"Кислота {acid.formula} — сильная, диссоциирует полностью")
+
+        # У многоосновной кислоты вторая ступень слабая: у серной pKa₂ 1.99.
+        # При 0.1 М она даёт около 10 % дополнительных ионов водорода,
+        # при 0.001 М — почти половину. Молчать об этом нельзя.
+        stages = _stages_pka(acid)
+        if len(stages) > 1:
+            system = AcidSystem(acid.formula, concentration, stages)
+            eq = solve_acid_base([system], temperature_k=temperature_k)
+            # равновесие решается с активностями; если их просили
+            # не учитывать — берём концентрационный pH
+            value = eq.ph if include_activity else -math.log10(eq.h_concentration)
+            naive = strong_acid_ph(
+                concentration, temperature_k,
+                include_activity=include_activity).numeric()
+            res.value = value
+            res.method = ("Первая ступень полностью, остальные — "
+                          "по константам диссоциации")
+            res.with_step("Ступени: " + ", ".join(
+                f"pKa{i + 1} = {pka:g}" for i, pka in enumerate(stages)))
+            res.with_step(
+                f"С учётом всех ступеней pH = {value:.4f} "
+                f"(без второй ступени было бы {naive:.4f})")
+            res.with_meta("full_equilibrium_ph", value)
+            res.with_meta("pka_stages", stages)
+        else:
+            res.with_warning(
+                f"Кислота {acid.formula} многоосновная, но данных о второй "
+                f"ступени в справочнике нет: pH считается по первой. "
+                f"Вклад второй ступени не учтён.")
         return res
 
     if acid.is_strong:
@@ -730,32 +823,84 @@ def ph_of_acid(acid_query: str, concentration: float,
 
 
 def _related_pka(formula: str, protons: int) -> list[float] | None:
-    """Собрать набор pKa ступеней одной кислоты из справочника."""
+    """Собрать набор pKa ступеней одной кислоты из справочника.
+
+    Сравнение идёт по точной формуле: раньше «H2SO4» совпадала с «H2S»
+    по префиксу, и серная кислота получала pKa сероводорода (7.02).
+    """
     known = [
         ("H3PO4", ["H3PO4", "H2PO4-", "HPO4^2-"]),
         ("H2CO3", ["H2CO3", "HCO3-"]),
         ("H2S", ["H2S", "HS-"]),
         ("H2SO4", ["H2SO4", "HSO4-"]),
+        ("H2SO3", ["H2SO3", "HSO3-"]),
         ("H2C2O4", ["H2C2O4", "HC2O4-"]),
         ("C4H6O6", ["C4H6O6", "C4H4O6-"]),
         ("C6H8O7", ["C6H8O7", "C6H7O7-", "C6H6O7^2-"]),
         ("C8H6O4", ["C8H6O4", "C8H5O4-"]),
         ("H2CrO4", ["H2CrO4", "HCrO4-"]),
-        ("H2SeO3", ["H2SeO3"]),
-        ("H2SeO4", ["H2SeO4"]),
-        ("H2SiO3", ["H2SiO3"]),
-        ("H2TeO3", ["H2TeO3"]),
+        ("H2SeO3", ["H2SeO3", "HSeO3-"]),
+        ("H2SeO4", ["H2SeO4", "HSeO4-"]),
+        ("H2SiO3", ["H2SiO3", "HSiO3-"]),
+        ("H2TeO3", ["H2TeO3", "HTeO3-"]),
     ]
+    clean = formula.replace(" ", "")
     for root, steps in known:
-        if formula.replace(" ", "") == root or formula.startswith(root):
-            result = []
-            for step in steps[:protons]:
-                acid = ADB.maybe_acid(step)
-                if acid is None:
-                    return None
-                result.append(acid.pKa)
-            return result if len(result) == protons else None
+        if clean != root:
+            continue
+        result = []
+        for step in steps[:max(1, protons)]:
+            acid = ADB.maybe_acid(step)
+            if acid is None:
+                break
+            result.append(acid.pKa)
+        # отдаём столько ступеней, сколько нашлось: у серной их две,
+        # и обе нужны, даже если в карточке указан один протон
+        return result or None
     return None
+
+
+def _stages_pka(acid) -> list[float]:
+    """Все известные ступени кислоты, начиная с первой."""
+    chain = _related_pka(acid.formula, 6)
+    if chain:
+        return chain
+    return [acid.pKa]
+
+
+def ph_of_base(base_query: str, concentration: float,
+               temperature_k: float = 298.15,
+               include_activity: bool = True) -> Result:
+    """pH раствора основания из справочника."""
+def _check_solubility_limit(res: Result, formula: str, concentration: float,
+                            n_hydroxide: float) -> None:
+    """Предупредить, если заданная концентрация выше растворимости.
+
+    Для M(OH)ₙ предел считается из произведения растворимости:
+    Ksp = c·(n·c)ⁿ. Если просят больше, такого раствора не бывает —
+    часть основания останется осадком, и pH будет ниже расчётного.
+    """
+    from ..data import solubility as SDB
+
+    try:
+        solid = SDB.maybe_solid(formula)
+    except Exception:
+        solid = None
+    if solid is None or not solid.Ksp:
+        return
+
+    n = max(1.0, float(n_hydroxide))
+    limit = (solid.Ksp / (n ** n)) ** (1.0 / (n + 1.0))
+    if concentration <= limit * 1.01:
+        return
+
+    res.with_warning(
+        f"Концентрация {concentration:g} моль/л выше растворимости "
+        f"{formula} ({limit:.4g} моль/л при Ksp = {solid.Ksp:.2g}). "
+        f"Такой раствор не получится: избыток останется осадком, "
+        f"реальный pH будет ниже расчётного."
+    )
+    res.with_meta("solubility_limit", limit)
 
 
 def ph_of_base(base_query: str, concentration: float,
@@ -772,6 +917,8 @@ def ph_of_base(base_query: str, concentration: float,
         res.with_step(f"Основание {base.formula} — сильное")
         if base.OH > 1:
             res.with_step(f"Содержит {base.OH} гидроксид-иона на формульную единицу")
+        _check_solubility_limit(res, base.formula, concentration,
+                                max(1, base.OH))
         return res
 
     pkw = ADB.pkw_at(temperature_k)
@@ -799,6 +946,7 @@ def ph_of_base(base_query: str, concentration: float,
         res.with_step(f"pOH = {-math.log10(gamma * oh):.4f}, pH = {ph:.4f}")
         res.with_meta("oh_concentration", oh)
         res.with_meta("ionic_strength", I)
+        _activity_limit_warnings(res, I)
         res.with_meta("gamma", gamma)
     else:
         # Молекулярное основание: B + H2O ⇌ BH⁺ + OH⁻
@@ -827,6 +975,7 @@ def ph_of_base(base_query: str, concentration: float,
         res.with_meta("oh_concentration", oh)
         res.with_meta("alpha", alpha)
         res.with_meta("ionic_strength", I)
+        _activity_limit_warnings(res, I)
         res.with_meta("gamma", gamma)
 
     res.with_source(ADB.source())
@@ -881,6 +1030,7 @@ def buffer_ph(acid_query: str, c_acid: float, c_salt: float,
     res.with_meta("pKa", pka)
     res.with_meta("ratio", ratio)
     res.with_meta("ionic_strength", I)
+    _activity_limit_warnings(res, I)
     res.with_meta("gamma", gamma_a)
     res.with_source(ADB.source())
 

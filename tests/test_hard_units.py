@@ -326,13 +326,32 @@ class TestDataIntegrity(unittest.TestCase):
         self.assertEqual(broken, [])
 
     def test_truly_strong_acids_are_fully_dissociated(self):
-        """При pKa ниже −1 диссоциация полная: pH = −lg C."""
+        """При pKa ниже −1 диссоциация полная: pH = −lg C.
+
+        Серная сюда не входит: у неё вторая ступень слабая (pKa 1.99),
+        и при 0.1 М она добавляет около 10 % ионов водорода, а при
+        0.001 М — почти столько же, сколько первая.
+        """
         from alchemy.engines import acidbase as AB
 
-        for formula in ("HCl", "HBr", "HI", "HClO4", "HNO3", "H2SO4"):
+        for formula in ("HCl", "HBr", "HI", "HClO4", "HNO3"):
             value = AB.ph_of_acid(formula, 0.1,
                                   include_activity=False).numeric()
             self.assertAlmostEqual(value, 1.0, places=2, msg=formula)
+
+    def test_sulfuric_second_stage_counts(self):
+        """У серной кислоты вторая ступень заметна и учитывается."""
+        from alchemy.engines import acidbase as AB
+
+        # без второй ступени было бы ровно 1.0, с ней — около 0.96
+        first = AB.ph_of_acid("H2SO4", 0.1, include_activity=False).numeric()
+        self.assertLess(first, 1.0)
+        self.assertAlmostEqual(first, 0.96, places=2)
+
+        dilute = AB.ph_of_acid("H2SO4", 0.001,
+                               include_activity=False).numeric()
+        # без второй ступени было бы ровно 3.0, с ней — около 2.73
+        self.assertAlmostEqual(dilute, 2.73, places=1)
 
     def test_strong_label_does_not_override_pka(self):
         """Ярлык «сильная» не должен отменять константу.

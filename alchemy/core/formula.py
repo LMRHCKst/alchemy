@@ -549,14 +549,17 @@ def _parse_counts(formula: str) -> dict[str, float]:
 
 _ELEMENT_RE = re.compile(r"([A-Z][a-z]?)")
 _NUMBER_RE = re.compile(r"(\d+(?:\.\d+)?)")
-_STATE_SUFFIX_RE = re.compile(r"\((g|l|s|aq|кр|ж|г|тв|р-р|р|т)\)\s*$", re.IGNORECASE)
+_STATE_SUFFIX_RE = re.compile(r"\(([^()]*)\)\s*$")
 
 # Русские обозначения состояний -> латинские
 STATE_ALIASES = {
-    "g": "g", "г": "g",
-    "l": "l", "ж": "l",
+    "g": "g", "г": "g", "газ": "g",
+    "l": "l", "ж": "l", "жидк": "l", "жидкость": "l",
     "s": "s", "кр": "s", "тв": "s", "т": "s",
-    "aq": "aq", "р-р": "aq", "р": "aq",
+    "графит": "s", "алмаз": "s", "ромб": "s", "ромбическая": "s",
+    "монокл": "s", "моноклинная": "s", "гексагональная": "s",
+    "белый": "s", "красный": "s", "чёрный": "s", "аморфный": "s",
+    "aq": "aq", "р-р": "aq", "р": "aq", "раствор": "aq",
 }
 
 
@@ -570,7 +573,10 @@ def split_state(text: str) -> tuple[str, str | None]:
     m = _STATE_SUFFIX_RE.search(s)
     if not m:
         return s, None
-    state = STATE_ALIASES.get(m.group(1).lower())
+    state = STATE_ALIASES.get(m.group(1).strip().lower())
+    if state is None:
+        # в скобках не состояние, а часть формулы: Cu(OH)2, Al2(SO4)3
+        return s, None
     return s[:m.start()].strip(), state
 _LEADING_COEFF_RE = re.compile(r"^(\d+(?:\.\d+)?)(?=[A-Z\[\(])")
 _CHARGE_TAIL_RE = re.compile(r"\^?(\d*)([+-])$")
