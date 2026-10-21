@@ -43,6 +43,14 @@ ION_SIZE_NM = 0.3         # эффективный диаметр иона по 
 # в пределах 8 %, дальше растёт катастрофически.
 MAX_PHYSICAL_GAMMA = 5.0
 
+#: как называть зоны модели в подписях к результату
+ZONE_TITLES = {
+    "limiting": "предельный закон Дебая — Хюккеля (I < 0.001)",
+    "extended": "уравнение Дебая — Хюккеля с поправкой на размер иона",
+    "davies": "формула Дэвиса",
+    "beyond": "экстраполяция за пределы модели",
+}
+
 # Эффективные диаметры ионов по Киелланду, нм.
 # Значения подобраны так, чтобы расширенное уравнение воспроизводило
 # справочные коэффициенты активности. Для H⁺ диаметр велик, потому что
@@ -160,19 +168,95 @@ def _activity_limit_warnings(res: Result, ionic_strength_: float) -> None:
     Уравнение Дебая — Хюккеля с поправкой на размер иона работает примерно
     до I = 0.1 моль/л, формула Дэвиса — до 0.5. Дальше нужен Питцер или
     экспериментальные коэффициенты; молчать об этом нельзя.
+
+    Три зоны обрабатываются по-разному, и это не три разных правила,
+    а одна политика: где модель верна — считаем молча, где на границе —
+    считаем и предупреждаем с цифрой, где за границей — предупреждаем
+    громко и говорим, чему верить нельзя.
     """
-    if ionic_strength_ > 0.5:
-        res.with_warning(
-            f"Ионная сила {ionic_strength_:.2f} моль/л выше предела формулы "
-            f"Дэвиса (0.5). Коэффициенты активности здесь оценочные, "
-            f"нужна модель Питцера или опытные данные."
-        )
-    elif ionic_strength_ > 0.1:
+    zone = activity_zone(ionic_strength_)
+    res.with_meta("activity_zone", zone)
+    res.with_meta("activity_error_percent", _expected_error(ionic_strength_))
+    res.with_step(
+        f"Модель активностей: {ZONE_TITLES[zone]}, "
+        f"ожидаемая погрешность γ до {_expected_error(ionic_strength_)} %")
+
+    if zone == "davies":
+        # Сверка с Питцером (docs/activity_model.md): до 0.5 моль/л
+        # расхождение по 1:1 солям в пределах 8 %, выше — растёт быстро.
+        error = _expected_error(ionic_strength_)
         res.with_warning(
             f"Ионная сила {ionic_strength_:.2f} моль/л выше области, где "
-            f"уравнение Дебая — Хюккеля точно: до 0.1. Для этой концентрации "
-            f"коэффициенты активности приблизительны."
+            f"уравнение Дебая — Хюккеля точно (до 0.1). Расчёт идёт по "
+            f"формуле Дэвиса, ожидаемая погрешность коэффициентов "
+            f"активности — до {error} %. Для точной работы нужна модель "
+            f"Питцера."
         )
+    elif zone == "beyond":
+        res.with_warning(
+            f"Ионная сила {ionic_strength_:.2f} моль/л за пределом формулы "
+            f"Дэвиса (0.5). Коэффициенты активности здесь оценочные, "
+            f"расхождение с Питцером может доходить до десятков процентов, "
+            f"а для двухзарядных ионов — до разов. Результат годится только "
+            f"как порядок величины."
+        )
+
+
+def activity_zone(ionic_strength_: float) -> str:
+    """Где мы находимся относительно области применимости модели.
+
+    Границы взяты не с потолка: до 0.001 работает предельный закон,
+    до 0.1 — уравнение с поправкой на размер иона (сверка с Питцером
+    даёт расхождение меньше процента), до 0.5 — формула Дэвиса.
+    """
+    if ionic_strength_ < 1e-3:
+        return "limiting"
+    if ionic_strength_ < 0.1:
+        return "extended"
+    if ionic_strength_ <= 0.5:
+        return "davies"
+    return "beyond"
+
+
+def _expected_error(ionic_strength_: float) -> int:
+    """Оценка погрешности коэффициента активности, в процентах.
+
+    Числа из сверки с Питцером (docs/activity_model.md): в предельном
+    законе расхождение доли процента, на 0.1 — единицы процентов,
+    на 0.5 — около 8 %, на 1 — около 20 %, дальше растёт.
+    """
+    zone = activity_zone(ionic_strength_)
+    if zone == "limiting":
+        return 1
+    if zone == "extended":
+        return 3
+    if zone == "davies":
+        return 8
+    return min(90, int(20 + 35 * (ionic_strength_ - 1.0)))
+
+
+def activity_report(charge: float,
+                    ionic_strength_: float) -> dict[str, float | str]:
+    """Справка о коэффициенте активности: значение, зона, погрешность.
+
+    Единая точка для интерфейса и для ИИ-чата: и там, и там нужно
+    не только число, но и объяснение, насколько ему верить.
+    """
+    zone = activity_zone(ionic_strength_)
+    try:
+        gamma = activity_coefficient(charge, ionic_strength_)
+        note = ""
+    except DomainError as exc:
+        gamma = float("nan")
+        note = str(exc)
+    return {
+        "gamma": gamma,
+        "zone": zone,
+        "zone_title": ZONE_TITLES[zone],
+        "error_percent": _expected_error(ionic_strength_),
+        "usable": math.isfinite(gamma),
+        "note": note,
+    }
 
 
 def ionic_strength(concentrations: dict[str, float],
