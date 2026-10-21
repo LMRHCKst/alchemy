@@ -21,7 +21,7 @@ try:
     from PySide6.QtWidgets import QApplication
 
     from alchemy.ui import theme
-    from alchemy.ui_qt.app import ADVANCED_TABS, BASIC_TABS, AlchemyApp
+    from alchemy.ui_qt.app import ADVANCED_TABS, BASIC_TABS, CHAT_TABS, AlchemyApp
     HAS_QT = True
 except ImportError:      # pragma: no cover
     QApplication = None
@@ -73,22 +73,23 @@ class TestAppShell(unittest.TestCase):
         self.assertIn("Alchemy", self.window.windowTitle())
 
     def test_all_modules_registered(self):
-        """16 основных и 19 дополнительных, включая школьные темы."""
+        """16 основных, 19 дополнительных и отдельный блок ИИ-чата."""
         self.assertEqual(len(self.window._items),
-                         len(BASIC_TABS) + len(ADVANCED_TABS))
+                         len(BASIC_TABS) + len(ADVANCED_TABS) + len(CHAT_TABS))
         self.assertEqual(len(BASIC_TABS), 16)
         self.assertEqual(len(ADVANCED_TABS), 19)
+        self.assertEqual(len(CHAT_TABS), 1)
         self.assertEqual(len(BASIC_TABS) + len(ADVANCED_TABS), 35)
 
     def test_open_every_tab(self):
-        for spec in BASIC_TABS + ADVANCED_TABS:
+        for spec in BASIC_TABS + ADVANCED_TABS + CHAT_TABS:
             self.window.open_tab(spec.cls)
             self.assertIn(spec.cls, self.window._tabs)
 
     def test_every_tab_calculates(self):
         """Каждая вкладка открывается и считает без падения."""
         failures = []
-        for spec in BASIC_TABS + ADVANCED_TABS:
+        for spec in BASIC_TABS + ADVANCED_TABS + CHAT_TABS:
             self.window.open_tab(spec.cls)
             tab = self.window._tabs.get(spec.cls)
             if tab is None:

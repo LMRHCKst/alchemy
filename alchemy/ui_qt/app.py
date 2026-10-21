@@ -36,6 +36,7 @@ from ..ui.tabs_school import (
     BondingTab, ClassesTab, HardnessTab, OxidationTab, QualitativeTab,
     RedoxTab, ShiftTab,
 )
+from .ai_tab import AiTab
 from .cantera_tab import CanteraTab
 
 
@@ -130,6 +131,11 @@ ADVANCED_TABS: list[TabSpec] = [
             "advanced"),
     TabSpec("Реакции органики", "Реакции классов, пробы, полимеры",
             OrganicReactionsTab, "advanced"),
+]
+
+#: отдельный блок в меню: не модуль расчёта, а разговор с моделью
+CHAT_TABS: list[TabSpec] = [
+    TabSpec("ИИ-расчётчик", "Вопрос словами, считает движок", AiTab, "chat"),
 ]
 
 
@@ -298,7 +304,7 @@ class AlchemyApp(QMainWindow):
     def _about(self) -> None:
         from PySide6.QtWidgets import QMessageBox
 
-        modules = len(BASIC_TABS) + len(ADVANCED_TABS)
+        modules = len(BASIC_TABS) + len(ADVANCED_TABS) + len(CHAT_TABS)
         QMessageBox.about(
             self, "О программе",
             f"{APP_TITLE}\n"
@@ -356,9 +362,11 @@ class AlchemyApp(QMainWindow):
 
         self._add_group("ОСНОВНЫЕ МОДУЛИ", BASIC_TABS)
         self._add_group("ДОПОЛНИТЕЛЬНЫЕ МОДУЛИ", ADVANCED_TABS)
+        self._add_group("ИИ-ЧАТ", CHAT_TABS)
 
-        footer = QLabel(f"Всего модулей: "
-                        f"{len(BASIC_TABS) + len(ADVANCED_TABS)}.\n"
+        footer = QLabel(f"Модулей: "
+                        f"{len(BASIC_TABS) + len(ADVANCED_TABS)}, "
+                        f"плюс ИИ-чат.\n"
                         f"Расчёты локальные, источники указаны.")
         footer.setObjectName("SidebarSubtitle")
         footer.setWordWrap(True)
