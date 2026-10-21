@@ -15,7 +15,7 @@ import re
 
 from ..core import formula as F
 from ..core.errors import InputError
-from ..core.results import Result
+from ..core.results import Result, table_result
 from ..data import acids as ADB
 from . import ioniceq
 
@@ -120,6 +120,90 @@ def salt_type(salt: str) -> dict:
     }
 
 
+
+#: ступени кислот для анионов: от сопряжённой кислоты к более протонированным
+STAGE_PKA = {
+    "CO3^2-": [10.33, 6.35],
+    "PO4^3-": [12.35, 7.198, 2.148],
+    "S^2-": [14.0, 7.02],
+    "SO3^2-": [7.18, 1.9],
+    "SiO3^2-": [9.8, 9.8],
+    "C2O4^2-": [4.27, 1.25],
+}
+
+
+def hydrolysis_stages(salt: str, concentration: float = 0.1,
+                      temperature_k: float = 298.15) -> Result:
+    """Гидролиз по ступеням: каждая следующая подавлена предыдущей.
+
+    Школьное правило: гидролиз идёт преимущественно по первой ступени.
+    Здесь это не постулат, а число: у второй ступени Kh меньше на
+    несколько порядков, и вклад в щёлочность падает вместе с ним.
+    """
+    if concentration <= 0:
+        raise InputError("Концентрация должна быть больше нуля")
+
+    info = salt_type(salt)
+    anion = info["anion"]
+    pkw = ADB.pkw_at(temperature_k)
+    kw = 10.0 ** (-pkw)
+
+    if not info["anion_weak"]:
+        raise InputError(
+            f"Анион {anion} — от сильной кислоты: гидролиза по аниону нет, "
+            f"ступеней считать не из чего")
+
+    stages = STAGE_PKA.get(anion) or []
+    if not stages:
+        raise InputError(
+            f"Для аниона {anion} нет ступеней кислоты в справочнике")
+
+    rows = []
+    for index, pka in enumerate(stages, 1):
+        ka = 10.0 ** (-pka)
+        kh = kw / ka
+        degree = math.sqrt(kh / concentration)
+        rows.append({
+            "Ступень": index,
+            "pKa кислоты": pka,
+            "Kh": f"{kh:.3e}",
+            "Степень, %": round(degree * 100, 6),
+            "Что образуется": _stage_product(anion, index),
+        })
+
+    res = table_result(
+        rows,
+        label=f"Гидролиз {info['salt']} по ступеням",
+        columns=["Ступень", "pKa кислоты", "Kh", "Степень, %",
+                 "Что образуется"])
+    res.method = "Kh = Kw / Ka; h = √(Kh / C)"
+    res.with_step(f"Концентрация соли: {concentration:g} моль/л")
+    res.with_step(f"pKw при {temperature_k:g} К: {pkw:.4f}")
+    res.with_step(
+        "Каждая следующая ступень подавлена ионами OH⁻ от предыдущей, "
+        "поэтому гидролиз практически идёт по первой")
+    res.with_assumption(
+        "Степень считается в приближении малой степени h = √(Kh/C): "
+        "при h больше 10 % значение завышено.")
+    res.with_source(ADB.source())
+    return res
+
+
+def _stage_product(anion: str, stage: int) -> str:
+    """Что образуется на данной ступени гидролиза."""
+    names = {
+        "CO3^2-": ["HCO3⁻ (гидрокарбонат)", "H2CO3 (угольная кислота)"],
+        "PO4^3-": ["HPO4^2⁻ (гидрофосфат)", "H2PO4⁻ (дигидрофосфат)",
+                   "H3PO4 (фосфорная кислота)"],
+        "S^2-": ["HS⁻ (гидросульфид)", "H2S (сероводород)"],
+        "SO3^2-": ["HSO3⁻ (гидросульфит)", "H2SO3 (сернистая кислота)"],
+        "SiO3^2-": ["HSiO3⁻ (гидросиликат)", "H2SiO3 (кремниевая кислота)"],
+        "C2O4^2-": ["HC2O4⁻ (гидрооксалат)", "H2C2O4 (щавелевая кислота)"],
+    }
+    options = names.get(anion) or []
+    return options[stage - 1] if stage <= len(options) else "—"
+
+
 def hydrolysis(salt: str, concentration: float = 0.1,
                temperature_k: float = 298.15) -> Result:
     """Гидролиз соли: уравнение, тип, среда, константа, степень, pH."""
@@ -208,6 +292,17 @@ def hydrolysis(salt: str, concentration: float = 0.1,
         res.with_meta("degree", degree)
         res.with_meta("ph", ph)
         res.value = f"{info['medium']}, pH {ph:.2f}"
+
+        stages = STAGE_PKA.get(anion) or []
+        if len(stages) > 1:
+            second_ka = 10.0 ** (-stages[1])
+            second_kh = kw / second_ka
+            second_degree = math.sqrt(second_kh / concentration)
+            res.with_step(
+                f"Вторая ступень: Kh = {second_kh:.3e}, "
+                f"h = {second_degree * 100:.2e} % — "
+                f"подавлена в {degree / second_degree:.0f} раз")
+            res.with_meta("second_stage_degree", second_degree)
     elif kind == "cation" and kb_data:
         res.with_step(f"Сопряжённое основание: {kb_data[1]}, "
                       f"Kb = {kb_data[0]:.3g}")

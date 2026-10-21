@@ -24,6 +24,7 @@ from ..engines import acidbase, balancer, classification, electrochemistry
 from ..engines import equilibrium, gases, hardness, kinetics, organic, oxidation
 from ..engines import qualitative, redox, solutions, stoichiometry, thermo
 from ..engines import hydrolysis as hydrolysis_engine
+from ..engines import solubility as solubility_engine
 from ..engines import ioniceq
 from ..engines import valence as valence_engine
 
@@ -526,6 +527,28 @@ TOOLS: list[dict] = [
              "second": {**_S, "description": "второй элемент"},
              "valency_second": {**_N, "description": "его валентность"}},
             ["first", "valency_first", "second", "valency_second"]),
+
+    _schema("solubility_pure_water", "Растворимость соли в воде, моль/л.",
+            {"salt": {**_S, "description": "формула соли, например AgCl"}},
+            ["salt"]),
+
+    _schema("solubility_at_ph", "Растворимость соли при заданном pH: "
+            "учитывает связывание аниона ионами водорода.",
+            {"salt": {**_S, "description": "формула соли"},
+             "ph": {**_N, "description": "pH раствора"}},
+            ["salt", "ph"]),
+
+    _schema("ph_for_dissolution", "До какого pH подкислить, чтобы осадок "
+            "растворился до заданной концентрации.",
+            {"salt": {**_S, "description": "формула соли"},
+             "target": {**_N, "description": "нужная растворимость, моль/л"}},
+            ["salt", "target"]),
+
+    _schema("hydrolysis_stages", "Гидролиз соли по ступеням: Kh и степень "
+            "каждой ступени.",
+            {"salt": {**_S, "description": "формула соли"},
+             "concentration": {**_N, "description": "моль/л, по умолчанию 0.1"}},
+            ["salt"]),
 ]
 
 #: имя → функция
@@ -561,6 +584,29 @@ def formula_from_valence(first: str, valency_first: int, second: str,
 
 
 
+def solubility_pure_water(salt: str) -> ToolResult:
+    """Растворимость соли в чистой воде."""
+    return _call(solubility_engine.solubility_pure_water, salt=salt)
+
+
+def solubility_at_ph(salt: str, ph: float) -> ToolResult:
+    """Растворимость соли при заданном pH."""
+    return _call(solubility_engine.solubility_at_ph, salt=salt, ph=ph)
+
+
+def ph_for_dissolution(salt: str, target: float) -> ToolResult:
+    """До какого pH подкислить, чтобы осадок растворился."""
+    return _call(solubility_engine.ph_for_dissolution, salt=salt,
+                 target=target)
+
+
+def hydrolysis_stages(salt: str, concentration: float = 0.1) -> ToolResult:
+    """Гидролиз соли по ступеням."""
+    return _call(hydrolysis_engine.hydrolysis_stages, salt=salt,
+                 concentration=concentration)
+
+
+
 REGISTRY: dict[str, Callable[..., ToolResult]] = {
     "molar_mass": molar_mass,
     "water_of_crystallization": water_of_crystallization,
@@ -589,9 +635,14 @@ REGISTRY: dict[str, Callable[..., ToolResult]] = {
     "half_life": half_life,
     "ionic_equation": ionic_equation,
     "hydrolysis": hydrolysis,
+    "solubility_pure_water": solubility_pure_water,
+    "solubility_at_ph": solubility_at_ph,
+    "ph_for_dissolution": ph_for_dissolution,
+    "hydrolysis_stages": hydrolysis_stages,
     "valency": valency,
     "formula_from_valence": formula_from_valence,
 }
+
 
 
 

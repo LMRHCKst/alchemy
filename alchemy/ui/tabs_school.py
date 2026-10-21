@@ -20,6 +20,7 @@ from ..engines import qualitative as Q
 from ..engines import hydrolysis as HD
 from ..engines import ioniceq as IE
 from ..engines import redox as RX
+from ..engines import solubility as SLB
 from ..engines import valence as VL
 from .components import BaseTab, Card, LabeledCombo, LabeledEntry
 
@@ -567,3 +568,68 @@ class HydrolysisTab(BaseTab):
         return HD.hydrolysis(self.fields["salt"].get(),
                              float(self.fields["concentration"].get()
                                    .replace(",", ".") or 0.1))
+
+
+# ==========================================================================
+# 11. Растворимость и pH
+# ==========================================================================
+
+
+class SolubilityTab(BaseTab):
+    """Растворимость осадков, влияние pH и условия растворения."""
+
+    title = "Растворимость и pH"
+    description = ("Растворимость осадка в воде, при заданном pH и обратная "
+                   "задача: до какого pH подкислить, чтобы он растворился.")
+    action_label = "Рассчитать"
+    history_action = "Растворимость"
+
+    MODES = ["В воде", "При заданном pH", "До какого pH растворится"]
+
+    def build_inputs(self, parent):
+        self.mode = LabeledCombo(parent, "Задача:", self.MODES, width=340)
+        self.mode.pack(fill="x", pady=4)
+        self.mode.combo.configure(command=lambda: self._rebuild())
+
+        self.area = ctk.CTkFrame(parent, fg_color="transparent")
+        self.area.pack(fill="x", pady=6)
+        self._rebuild()
+
+    def _rebuild(self):
+        for widget in self.area.winfo_children():
+            widget.destroy()
+        self.fields = {}
+        mode = self.mode.get()
+
+        _field(self.area, self.fields, "salt", "Формула осадка",
+               "CaCO3", width=240)
+
+        if mode == self.MODES[1]:
+            _field(self.area, self.fields, "ph", "pH раствора", "5", width=140)
+            hint = ("Ионы водорода связывают анион слабой кислоты, "
+                    "равновесие сдвигается, растворимость растёт.")
+        elif mode == self.MODES[2]:
+            _field(self.area, self.fields, "target",
+                   "Нужная растворимость, моль/л", "0.01", width=200)
+            hint = ("Обратный расчёт: какая доля аниона должна остаться "
+                    "непротонированной.")
+        else:
+            hint = ("Обычная растворимость из произведения растворимости.")
+
+        ctk.CTkLabel(self.area, text=hint, font=("Segoe UI", 10),
+                     text_color="#9a9a9a", anchor="w",
+                     wraplength=760).pack(fill="x", pady=(6, 0))
+        self.bind_enter()
+
+    def calculate(self) -> Result:
+        mode = self.mode.get()
+        salt = self.fields["salt"].get()
+        if mode == self.MODES[1]:
+            return SLB.solubility_at_ph(
+                salt, float(self.fields["ph"].get().replace(",", ".") or 7))
+        if mode == self.MODES[2]:
+            return SLB.ph_for_dissolution(
+                salt,
+                float(self.fields["target"].get().replace(",", ".") or 0.01))
+        return SLB.solubility_pure_water(salt)
+
