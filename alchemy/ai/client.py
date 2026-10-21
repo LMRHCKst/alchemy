@@ -1,8 +1,9 @@
 """Клиент OpenAI-совместимого API с поддержкой вызова инструментов.
 
-Ключ и адрес берутся из настроек чата Диси (`disi-chat/config.json`),
-чтобы не заводить второй файл с секретом. Путь можно переопределить
-переменной окружения `ALCHEMY_AI_CONFIG`.
+Ключ и адрес берутся из профиля пользователя. Если его там нет,
+программа смотрит внешний конфиг с ключом — чтобы при первом запуске
+ничего не вводить руками. Путь переопределяется переменной окружения
+`ALCHEMY_AI_CONFIG`.
 """
 
 from __future__ import annotations
@@ -104,6 +105,7 @@ class Reply:
     finish: str = ""
     model: str = ""
     usage: dict = field(default_factory=dict)
+    reasoning: str = ""
 
 
 class ChatClient:
@@ -157,6 +159,12 @@ class ChatClient:
                 detail = exc.read().decode("utf-8", "replace")[:300]
             except Exception:
                 pass
+            lower = detail.lower()
+            if "context" in lower and "exceed" in lower:
+                raise AiError(
+                    "модель не вмещает запрос: контекст сервера слишком мал. "
+                    "Перезапустите локальный сервер с -c 8192 или больше."
+                ) from None
             raise AiError(f"HTTP {exc.code}: {detail or exc.reason}") from None
         except urllib.error.URLError as exc:
             raise AiError(f"сеть недоступна: {exc.reason}") from None
@@ -175,6 +183,10 @@ class ChatClient:
             finish=str(choices[0].get("finish_reason") or ""),
             model=str(blob.get("model") or self.settings.model),
             usage=blob.get("usage") or {},
+            # локальные модели с рассуждениями кладут их отдельно;
+            # в ответ пользователю это не попадает
+            reasoning=str(message.get("reasoning_content")
+                          or message.get("reasoning") or "").strip(),
         )
 
     def list_models(self) -> list[str]:

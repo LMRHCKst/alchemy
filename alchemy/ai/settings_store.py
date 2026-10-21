@@ -7,8 +7,8 @@
 
 1. `ALCHEMY_AI_CONFIG` — явный путь, если задан.
 2. Файл настроек пользователя (`%APPDATA%\\Alchemy\\ai.json`).
-3. Настройки чата Диси — чтобы при первом запуске ничего не вводить,
-   если чат уже настроен.
+3. Внешний конфиг с ключом — чтобы при первом запуске ничего
+   не вводить, если ключ уже где-то сохранён.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ PRESETS: list[tuple[str, str]] = [
     ("OpenRouter", "https://openrouter.ai/api/v1"),
     ("DeepSeek", "https://api.deepseek.com/v1"),
     ("Mistral", "https://api.mistral.ai/v1"),
+    ("Локальная (llama.cpp)", "http://127.0.0.1:1235/v1"),
     ("Локальная (Ollama)", "http://127.0.0.1:11434/v1"),
     ("Локальная (LM Studio)", "http://127.0.0.1:1234/v1"),
     ("Свой адрес", ""),
@@ -101,7 +102,7 @@ def mask(key: str) -> str:
 
 
 def resolve() -> Settings:
-    """Собрать настройки по цепочке: явный путь → профиль → чат Диси."""
+    """Собрать настройки по цепочке: явный путь → профиль → внешний конфиг."""
     explicit = os.environ.get("ALCHEMY_AI_CONFIG")
     if explicit:
         return _from_json(Path(explicit))
@@ -126,7 +127,7 @@ def resolve_with_origin() -> tuple[Settings, str]:
             "ИИ-расчётчик и укажите адрес, ключ и модель."
         ) from None
 
-    return load_settings(chat_config), f"настройки чата ({chat_config})"
+    return load_settings(chat_config), f"внешний конфиг ({chat_config})"
 
 
 def resolve() -> Settings:
@@ -146,7 +147,7 @@ def ensure_ready() -> tuple[Settings, str]:
     """
     settings, origin = resolve_with_origin()
 
-    if origin.startswith("настройки чата"):
+    if origin.startswith("внешний конфиг"):
         try:
             save({
                 "api_base": settings.api_base,
@@ -158,7 +159,7 @@ def ensure_ready() -> tuple[Settings, str]:
         except AiError:
             # профиль недоступен на запись — работаем как есть, не падаем
             return settings, origin
-        return settings, "профиль пользователя (ключ перенесён из чата)"
+        return settings, "профиль пользователя (ключ перенесён из конфига)"
 
     return settings, origin
 

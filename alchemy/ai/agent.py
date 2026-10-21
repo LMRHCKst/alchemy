@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -15,6 +16,99 @@ from .tools import TOOLS, ToolResult, call_tool
 
 #: сколько раз разрешаем модели просить инструменты, прежде чем оборвать
 MAX_STEPS = 6
+
+#: признаки того, что вопрос требует расчёта, а не беседы.
+#: Слова вроде «кислота» или «щелочь» сюда не входят: вопрос «что такое
+#: кислота» — это определение, а не задача.
+CALC_WORDS = (
+    "масса", "массу", "моль", "молярн", "ph", "концентрац",
+    "раствор", "реакц", "уравн", "степень окисл", "тепл", "энтальп", "гиббс",
+    "энтроп", "выход", "растворим", "жёсткост", "жесткост", "осмос",
+    "газ", "объём", "объем", "давлен", "электролиз", "эдс", "потенциал",
+    "распад", "период полупревращ", "гидрат", "кристаллогидрат", "доля",
+    "класс", "изомер", "сгора", "равновес", "ле шателье", "нернст",
+)
+
+#: формула в тексте: латинская буква + цифры, или вещество с зарядом
+FORMULA_HINT = re.compile(
+    r"\b[A-Z][a-z]?\d*(?:[A-Z][a-z]?\d*)+|\b[A-Z][a-z]?\d*[+-]\b|\)\d")
+
+#: число в ответе, похожее на посчитанное значение
+NUMBER_HINT = re.compile(r"\d+[.,]\d+")
+
+
+def _needs_calculation(question: str) -> bool:
+    """Похоже ли, что без движка тут не обойтись."""
+    text = (question or "").lower()
+    if any(word in text for word in CALC_WORDS):
+        return True
+    return bool(FORMULA_HINT.search(question or ""))
+
+
+def _has_numbers(text: str) -> bool:
+    """Есть ли в ответе число, которое могло быть посчитано."""
+    return bool(NUMBER_HINT.search(text or ""))
+
+
+def _normalise(token: str) -> str:
+    """Привести число к сравнимому виду: 98,079 и 98.079 — одно и то же."""
+    text = token.replace(",", ".").strip(" .,")
+    try:
+        value = float(text)
+    except ValueError:
+        return text
+    if value == int(value):
+        return str(int(value))
+    return f"{value:.6f}".rstrip("0").rstrip(".")
+
+
+def _numbers_in(text: str) -> set[str]:
+    """Все десятичные числа в тексте, нормализованные."""
+    return {_normalise(m.group(0)) for m in NUMBER_HINT.finditer(text or "")}
+
+
+def _foreign_numbers(answer: str, steps: list["Step"]) -> list[str]:
+    """Числа из ответа, которых нет в результатах движка.
+
+    Сравнение по подстроке: движок печатает «249.677», модель может
+    написать «249,677» или «249.6770» — это одно и то же число.
+    Округление числа движка тоже разрешено: 36.0766 → 36.1 не выдумка.
+    А вот 98.079 при движковом 98.072 — уже подмена, и она ловится.
+    """
+    pool = " ".join(step.result for step in steps)
+    pool_numbers = _numbers_in(pool)
+    pool_text = pool.replace(",", ".")
+
+    foreign = []
+    for number in _numbers_in(answer):
+        if number in pool_numbers:
+            continue
+        # короткие целые вроде «5» или «2» — это слова, а не расчёт
+        if len(number) <= 2 and "." not in number:
+            continue
+        if number in pool_text:
+            continue
+        if _rounding_of(number, pool_numbers):
+            continue
+        foreign.append(number)
+    return sorted(foreign)
+
+
+def _rounding_of(number: str, pool: set[str]) -> bool:
+    """Является ли число округлением одного из чисел движка."""
+    try:
+        value = float(number)
+    except ValueError:
+        return False
+    digits = len(number.split(".")[1]) if "." in number else 0
+    for candidate in pool:
+        try:
+            source = float(candidate)
+        except ValueError:
+            continue
+        if round(source, digits) == value:
+            return True
+    return False
 
 SYSTEM_PROMPT = """Ты — Диси, инженер-расчётчик. Отвечаешь по-русски, коротко и по делу.
 
@@ -32,10 +126,12 @@ SYSTEM_PROMPT = """Ты — Диси, инженер-расчётчик. Отв�
    пытайся обойти её другим инструментом или приблизительным расчётом.
    Отказ — это ответ, а не помеха.
 
-4. Не пересчитывай и не округляй числа из результата. Переписывай их как
-   есть, с той точностью, что дал движок. Единицы указывай всегда.
-   Простая арифметика над уже полученными числами разрешена — сложить,
-   разделить, взять долю. Но сама величина обязана прийти из инструмента.
+4. Не пересчитывай, не округляй и не выводи сам числа из результата.
+   Переписывай только те числа, которые буквально есть в ответе инструмента,
+   с той точностью, что дал движок. Единицы указывай всегда.
+   Даже простая арифметика запрещена: если нужна доля, процент или
+   производная величина — найди инструмент, который её считает. Число,
+   которого нет в результате, считается выдуманным.
 
 5. Если результат содержит ПРЕДУПРЕЖДЕНИЯ или ДОПУЩЕНИЯ — обязательно
    упомяни их в ответе. Пользователь должен знать, где граница применимости.
@@ -73,6 +169,8 @@ class Answer:
     usage: dict = field(default_factory=dict)
     model: str = ""
     stopped: str = ""
+    #: True, если ответ опирается на расчёт движка или не содержит чисел
+    verified: bool = True
 
     def trace(self) -> str:
         """Короткая строка о том, какие расчёты выполнялись."""
@@ -126,9 +224,14 @@ class Agent:
         steps: list[Step] = []
         usage_total: dict[str, Any] = {}
         model = ""
+        nudged = False
 
         for _ in range(self.max_steps):
-            reply: Reply = self.client.complete(messages, TOOLS)
+            # если вопрос требует расчёта, а модель ещё ничего не вызвала —
+            # на первом шаге разрешаем потребовать вызов
+            force = bool(_needs_calculation(question)) and not steps
+            reply: Reply = self.client.complete(
+                messages, TOOLS, tool_choice="required" if force else "auto")
             model = reply.model or model
 
             if reply.usage:
@@ -137,11 +240,66 @@ class Agent:
                         usage_total[key] = usage_total.get(key, 0) + value
 
             if not reply.tool_calls:
+                # модель ответила сама. Для расчётного вопроса это брак:
+                # один раз просим вызвать инструмент, потом помечаем ответ.
+                if _needs_calculation(question) and not steps and not nudged:
+                    nudged = True
+                    messages.append({"role": "assistant", "content": reply.text or ""})
+                    messages.append({
+                        "role": "user",
+                        "content": "Это расчётный вопрос. Ты не вызывал ни одного "
+                                   "инструмента, значит числа взяты не из движка. "
+                                   "Вызови подходящий инструмент и ответь по его "
+                                   "результату. Если подходящего нет — скажи, "
+                                   "что посчитать не можешь.",
+                    })
+                    continue
+
+                verified = bool(steps) or not _has_numbers(reply.text)
+                if steps and reply.text:
+                    # числа в ответе обязаны совпадать с числами из движка
+                    foreign = _foreign_numbers(reply.text, steps)
+                    if foreign:
+                        verified = False
+                        return Answer(
+                            text=reply.text,
+                            steps=steps,
+                            usage=usage_total,
+                            model=model,
+                            verified=False,
+                            stopped="число не из движка: " + ", ".join(foreign[:3]),
+                        )
+
+                if steps and not reply.text.strip():
+                    # модель вызвала инструмент, но не сформулировала ответ.
+                    # Не выдумываем за неё: показываем то, что посчитал движок.
+                    if not nudged:
+                        nudged = True
+                        messages.append({
+                            "role": "user",
+                            "content": "Ты получил результат инструмента, но не "
+                                       "написал ответ. Ответь одним-двумя "
+                                       "предложениями, взяв числа из результата.",
+                        })
+                        continue
+                    last = steps[-1].result
+                    return Answer(
+                        text="Модель не сформулировала ответ. Что посчитал движок:\n\n"
+                             + last,
+                        steps=steps,
+                        usage=usage_total,
+                        model=model,
+                        verified=True,
+                        stopped="ответ собран из результата движка",
+                    )
+
                 return Answer(
                     text=reply.text or "Модель вернула пустой ответ.",
                     steps=steps,
                     usage=usage_total,
                     model=model,
+                    verified=verified,
+                    stopped="" if verified else "ответ без расчёта",
                 )
 
             # модель просит расчёты: фиксируем её сообщение и отвечаем результатами

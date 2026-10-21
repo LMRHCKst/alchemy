@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..ai import settings_store
+from ..ai import local_server, settings_store
 from ..ai.client import AiError, ChatClient, Settings
 from ..ui import theme
 
@@ -122,6 +122,52 @@ class AiSettingsDialog(QDialog):
 
         column.addLayout(form)
 
+        # --- локальная модель: движок, файлы, запуск ---
+        self.local_box = QWidget()
+        local_layout = QVBoxLayout(self.local_box)
+        local_layout.setContentsMargins(0, 0, 0, 0)
+        local_layout.setSpacing(6)
+
+        self.local_hint = QLabel(
+            "Локальный режим: llama.cpp поднимает сервер на этом компьютере, "
+            "ключ не нужен, интернет не нужен. Модели берутся из папки "
+            "models/ рядом с программой или из ALCHEMY_MODELS_DIR.")
+        self.local_hint.setWordWrap(True)
+        self.local_hint.setObjectName("PageDesc")
+        local_layout.addWidget(self.local_hint)
+
+        local_row = QWidget()
+        local_buttons = QHBoxLayout(local_row)
+        local_buttons.setContentsMargins(0, 0, 0, 0)
+        local_buttons.setSpacing(6)
+
+        self.local_models = QComboBox()
+        self.local_models.setMinimumWidth(300)
+        local_buttons.addWidget(self.local_models, 1)
+
+        self.start_button = QPushButton("Запустить движок")
+        self.start_button.setFixedWidth(170)
+        self.start_button.clicked.connect(self._start_local)
+        local_buttons.addWidget(self.start_button)
+
+        self.stop_button = QPushButton("Остановить")
+        self.stop_button.setFixedWidth(120)
+        self.stop_button.clicked.connect(self._stop_local)
+        local_buttons.addWidget(self.stop_button)
+
+        local_layout.addWidget(local_row)
+
+        self.local_status = QLabel("")
+        self.local_status.setWordWrap(True)
+        self.local_status.setObjectName("PageDesc")
+        local_layout.addWidget(self.local_status)
+
+        column.addWidget(self.local_box)
+
+        self.base.textChanged.connect(self._update_local_visibility)
+        self._fill_local_models()
+        self._update_local_visibility()
+
         self.status = QLabel("")
         self.status.setWordWrap(True)
         self.status.setObjectName("PageDesc")
@@ -153,12 +199,82 @@ class AiSettingsDialog(QDialog):
             url = settings_store.PRESETS[index][1]
             if url:
                 self.base.setText(url)
+            # для локального режима подставляем файл модели, чтобы
+            # облачное имя не осталось в поле
+            if url and self._is_local(url) and self.local_models.count():
+                current = self.model.text().strip().lower()
+                if "gguf" not in current:
+                    name = self.local_models.currentText()
+                    if name.endswith(".gguf"):
+                        self.model.setText(name)
+
+    # ---------------- локальная модель ----------------
+
+    @staticmethod
+    def _is_local(url: str) -> bool:
+        lowered = (url or "").lower()
+        return "127.0.0.1" in lowered or "localhost" in lowered
+
+    def _fill_local_models(self) -> None:
+        self.local_models.clear()
+        models = local_server.find_models()
+        for model in models:
+            self.local_models.addItem(model.name, str(model))
+        if not models:
+            self.local_models.addItem("моделей не найдено", "")
+        engine = local_server.find_engine()
+        prefix = "движок найден" if engine else "движок не найден"
+        self.local_hint.setText(
+            f"Локальный режим: llama.cpp поднимает сервер на этом компьютере, "
+            f"ключ и интернет не нужны. {prefix}. Модели берутся из папки "
+            f"models/ рядом с программой или из ALCHEMY_MODELS_DIR.")
+
+    def _update_local_visibility(self) -> None:
+        local = self._is_local(self.base.text())
+        self.local_box.setVisible(local)
+        if not local:
+            return
+        if local_server.health():
+            self.local_status.setText("Сервер уже работает на этом порту.")
+        elif local_server.running():
+            self.local_status.setText("Сервер запускается…")
+        else:
+            self.local_status.setText("Сервер остановлен.")
+
+    def _start_local(self) -> None:
+        path = self.local_models.currentData()
+        if not path:
+            self.local_status.setText(
+                "Нет файла модели. Положите .gguf в папку models/ "
+                "или укажите путь в ALCHEMY_MODELS_DIR.")
+            return
+
+        self.start_button.setEnabled(False)
+        self.local_status.setText("Запускаю движок, это может занять до минуты…")
+        try:
+            ok, message = local_server.start(path)
+        finally:
+            self.start_button.setEnabled(True)
+
+        self.local_status.setText(message)
+        if ok:
+            name = str(path).replace("\\", "/").rsplit("/", 1)[-1]
+            if not self.model.text().strip() or self._is_local(self.base.text()):
+                self.model.setText(name)
+            self._check()
+
+    def _stop_local(self) -> None:
+        local_server.stop()
+        self.local_status.setText("Сервер остановлен.")
 
     def _values(self) -> dict:
         key = self.key.text().strip()
         if not key:
             saved = settings_store.load_saved() or {}
             key = str(saved.get("api_key") or "")
+        # локальной модели ключ не нужен
+        if self._is_local(self.base.text()) and not key:
+            key = "local"
         return {
             "api_base": self.base.text().strip(),
             "api_key": key,

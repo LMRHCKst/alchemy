@@ -361,9 +361,10 @@ class AlchemyApp(QMainWindow):
         self.nav.currentItemChanged.connect(self._on_nav_changed)
         column.addWidget(self.nav, 1)
 
+        # ИИ-чат стоит первым: это вход, а не ещё один модуль
+        self._add_group("ИИ-ЧАТ", CHAT_TABS)
         self._add_group("ОСНОВНЫЕ МОДУЛИ", BASIC_TABS)
         self._add_group("ДОПОЛНИТЕЛЬНЫЕ МОДУЛИ", ADVANCED_TABS)
-        self._add_group("ИИ-ЧАТ", CHAT_TABS)
 
         footer = QLabel(f"Модулей: "
                         f"{len(BASIC_TABS) + len(ADVANCED_TABS)}, "
