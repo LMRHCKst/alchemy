@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from . import widgets as ctk
 
+from . import theme
 from ..core.errors import AlchemyError
 from ..core.results import Result
 from ..engines import bonding as B
@@ -82,7 +83,7 @@ class OxidationTab(BaseTab):
                     "а какой принимает.")
 
         ctk.CTkLabel(self.area, text=hint, font=("Segoe UI", 10),
-                     text_color="#9a9a9a", anchor="w",
+                     text_color=theme.COLOR_TEXT_DIM, anchor="w",
                      wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 
@@ -133,7 +134,7 @@ class RedoxTab(BaseTab):
                 self.area,
                 text="Коэффициенты проверяются точным решением системы "
                      "уравнений, поэтому ошибки в подборе исключены.",
-                font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+                font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM, anchor="w",
                 wraplength=760).pack(fill="x", pady=(6, 0))
 
         self.bind_enter()
@@ -183,7 +184,7 @@ class BondingTab(BaseTab):
                 text="Шкала разницы электроотрицательностей: до 0.4 — "
                      "ковалентная неполярная, 0.4–1.7 — полярная, "
                      "больше 1.7 — ионная.",
-                font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+                font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM, anchor="w",
                 wraplength=760).pack(fill="x", pady=(6, 0))
 
         self.bind_enter()
@@ -224,7 +225,7 @@ class ShiftTab(BaseTab):
             parent,
             text="Агрегатные состояния влияют на правило давления. "
                  "Указывайте их явно: CO2(г), CaO(тв).",
-            font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+            font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM, anchor="w",
             wraplength=760).pack(fill="x", pady=(6, 0))
 
     def calculate(self) -> Result:
@@ -285,7 +286,7 @@ class HardnessTab(BaseTab):
         ctk.CTkLabel(self.area,
                      text="1 °Ж = 1 мг-экв/л = 20.04 мг Ca²⁺/л "
                           "= 12.15 мг Mg²⁺/л",
-                     font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+                     font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM, anchor="w",
                      wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 
@@ -362,7 +363,7 @@ class QualitativeTab(BaseTab):
                 self.area,
                 text="Ион можно писать как SO4^2-, SO4-2 или по названию "
                      "соли. Реагент — как AgNO3.",
-                font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+                font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM, anchor="w",
                 wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 
@@ -428,7 +429,7 @@ class ClassesTab(BaseTab):
                 self.area,
                 text="Поддерживаются оксиды, основания, кислоты и соли "
                      "с известным кислотным остатком.",
-                font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+                font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM, anchor="w",
                 wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 
@@ -493,7 +494,7 @@ class ValenceTab(BaseTab):
                     "Al2O3.")
 
         ctk.CTkLabel(self.area, text=hint, font=("Segoe UI", 10),
-                     text_color="#9a9a9a", anchor="w",
+                     text_color=theme.COLOR_TEXT_DIM, anchor="w",
                      wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 
@@ -529,7 +530,7 @@ class IonicTab(BaseTab):
             parent,
             text="Подходят реакции обмена: нейтрализация, осаждение, "
                  "вытеснение слабой кислоты.",
-            font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+            font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM, anchor="w",
             wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 
@@ -560,7 +561,7 @@ class HydrolysisTab(BaseTab):
             parent,
             text="Если константы слабого электролита нет в справочнике, "
                  "тип гидролиза и среда определяются, а степень и pH — нет.",
-            font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+            font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM, anchor="w",
             wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 
@@ -617,7 +618,7 @@ class SolubilityTab(BaseTab):
             hint = ("Обычная растворимость из произведения растворимости.")
 
         ctk.CTkLabel(self.area, text=hint, font=("Segoe UI", 10),
-                     text_color="#9a9a9a", anchor="w",
+                     text_color=theme.COLOR_TEXT_DIM, anchor="w",
                      wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 

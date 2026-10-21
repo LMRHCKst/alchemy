@@ -15,6 +15,7 @@ from . import widgets as ctk
 
 from ..core import formula as F
 from ..core import periodic
+from . import theme
 from ..core.errors import AlchemyError
 from ..core.results import Result
 from ..data import acids as ADB
@@ -53,7 +54,7 @@ class EquilibriumTab(BaseTab):
 
     def build_inputs(self, parent):
         ctk.CTkLabel(parent, text="Кислоты в системе (формула, концентрация):",
-                     font=("Segoe UI", 12), text_color="#e8e8e8",
+                     font=("Segoe UI", 12), text_color=theme.COLOR_TEXT,
                      anchor="w").pack(fill="x", pady=(4, 2))
 
         self.table = EditableTable(parent, columns=["Кислота", "C, моль/л"],
@@ -70,7 +71,7 @@ class EquilibriumTab(BaseTab):
             ("Температура, К", "temperature", "298.15"),
         ):
             ctk.CTkLabel(row, text=label + ":", font=("Segoe UI", 12),
-                         text_color="#e8e8e8").pack(side="left", padx=(0, 4))
+                         text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 4))
             entry = ctk.CTkEntry(row, width=90, font=("Consolas", 13))
             entry.pack(side="left", padx=(0, 14))
             entry.insert(0, default)
@@ -78,7 +79,7 @@ class EquilibriumTab(BaseTab):
 
         self.use_activity = ctk.CTkCheckBox(
             parent, text="Учитывать коэффициенты активности",
-            font=("Segoe UI", 12), text_color="#e8e8e8")
+            font=("Segoe UI", 12), text_color=theme.COLOR_TEXT)
         self.use_activity.pack(anchor="w", pady=4)
         self.use_activity.select()
 
@@ -197,7 +198,7 @@ class TitrationTab(BaseTab):
             ("Объём аликвоты, мл", "v_acid", "20"),
         ):
             ctk.CTkLabel(row1, text=label + ":", font=("Segoe UI", 12),
-                         text_color="#e8e8e8").pack(side="left", padx=(0, 4))
+                         text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 4))
             entry = ctk.CTkEntry(row1, width=100, font=("Consolas", 13))
             entry.pack(side="left", padx=(0, 16))
             entry.insert(0, default)
@@ -210,7 +211,7 @@ class TitrationTab(BaseTab):
             ("Точек на кривой", "points", "80"),
         ):
             ctk.CTkLabel(row2, text=label + ":", font=("Segoe UI", 12),
-                         text_color="#e8e8e8").pack(side="left", padx=(0, 4))
+                         text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 4))
             entry = ctk.CTkEntry(row2, width=100, font=("Consolas", 13))
             entry.pack(side="left", padx=(0, 16))
             entry.insert(0, default)
@@ -261,7 +262,7 @@ class IndicatorTab(BaseTab):
             ("C титранта, моль/л", "c_base", "0.1"),
         ):
             ctk.CTkLabel(row, text=label + ":", font=("Segoe UI", 12),
-                         text_color="#e8e8e8").pack(side="left", padx=(0, 4))
+                         text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 4))
             entry = ctk.CTkEntry(row, width=90, font=("Consolas", 13))
             entry.pack(side="left", padx=(0, 14))
             entry.insert(0, default)
@@ -303,13 +304,13 @@ class ColligativeTab(BaseTab):
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", pady=3)
         ctk.CTkLabel(row, text="Моляльность, моль/кг:", font=("Segoe UI", 12),
-                     text_color="#e8e8e8").pack(side="left", padx=(0, 4))
+                     text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 4))
         self.molality = ctk.CTkEntry(row, width=100, font=("Consolas", 13))
         self.molality.pack(side="left", padx=(0, 16))
         self.molality.insert(0, "0.5")
 
         ctk.CTkLabel(row, text="Фактор Вант-Гоффа i:", font=("Segoe UI", 12),
-                     text_color="#e8e8e8").pack(side="left", padx=(0, 4))
+                     text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 4))
         self.i_entry = ctk.CTkEntry(row, width=80, font=("Consolas", 13))
         self.i_entry.pack(side="left")
         self.i_entry.insert(0, "2.0")
@@ -317,14 +318,14 @@ class ColligativeTab(BaseTab):
         row2 = ctk.CTkFrame(parent, fg_color="transparent")
         row2.pack(fill="x", pady=3)
         ctk.CTkLabel(row2, text="Молярность для осмоса, моль/л:",
-                     font=("Segoe UI", 12), text_color="#e8e8e8").pack(side="left",
+                     font=("Segoe UI", 12), text_color=theme.COLOR_TEXT).pack(side="left",
                                                                       padx=(0, 4))
         self.molarity = ctk.CTkEntry(row2, width=100, font=("Consolas", 13))
         self.molarity.pack(side="left", padx=(0, 16))
         self.molarity.insert(0, "0.48")
 
         ctk.CTkLabel(row2, text="Температура, К:", font=("Segoe UI", 12),
-                     text_color="#e8e8e8").pack(side="left", padx=(0, 4))
+                     text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 4))
         self.temperature = ctk.CTkEntry(row2, width=80, font=("Consolas", 13))
         self.temperature.pack(side="left")
         self.temperature.insert(0, "298.15")
@@ -384,7 +385,7 @@ class KineticsDataTab(BaseTab):
     def build_inputs(self, parent):
         ctk.CTkLabel(parent,
                      text="Введите опытные точки: время и концентрация.",
-                     font=("Segoe UI", 12), text_color="#e8e8e8",
+                     font=("Segoe UI", 12), text_color=theme.COLOR_TEXT,
                      anchor="w").pack(fill="x", pady=(4, 2))
 
         self.table = EditableTable(parent,
@@ -400,7 +401,7 @@ class KineticsDataTab(BaseTab):
         row.pack(fill="x", pady=6)
         ctk.CTkLabel(row, text="Начальная концентрация C₀, моль/л "
                                "(пусто — взять первую точку):",
-                     font=("Segoe UI", 12), text_color="#e8e8e8").pack(side="left")
+                     font=("Segoe UI", 12), text_color=theme.COLOR_TEXT).pack(side="left")
         self.c0_entry = ctk.CTkEntry(row, width=100, font=("Consolas", 13))
         self.c0_entry.pack(side="left", padx=8)
 
@@ -470,11 +471,11 @@ class ElectrolysisTab(BaseTab):
     def build_inputs(self, parent):
         ctk.CTkLabel(parent,
                      text="Возможные полуреакции (по одной в строке):",
-                     font=("Segoe UI", 12), text_color="#e8e8e8",
+                     font=("Segoe UI", 12), text_color=theme.COLOR_TEXT,
                      anchor="w").pack(fill="x", pady=(4, 2))
 
         self.text = ctk.CTkTextbox(parent, height=110, font=("Consolas", 12),
-                                   fg_color="#2b2b2b", wrap="none")
+                                   fg_color=theme.COLOR_CARD_ALT, wrap="none")
         self.text.pack(fill="x")
         self.text.insert("1.0", "Cu2+/Cu\nH+/H2\nO2/H2O")
 
@@ -487,7 +488,7 @@ class ElectrolysisTab(BaseTab):
             ("Температура, К", "temperature", "298.15"),
         ):
             ctk.CTkLabel(row, text=label + ":", font=("Segoe UI", 12),
-                         text_color="#e8e8e8").pack(side="left", padx=(0, 4))
+                         text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 4))
             entry = ctk.CTkEntry(row, width=80, font=("Consolas", 13))
             entry.pack(side="left", padx=(0, 12))
             entry.insert(0, default)
@@ -496,7 +497,7 @@ class ElectrolysisTab(BaseTab):
         ctk.CTkLabel(parent,
                      text="Доступные обозначения полуреакций: " +
                           ", ".join(e.id for e in EDB.all_electrodes()[:14]) + "...",
-                     font=("Segoe UI", 10), text_color="#9a9a9a",
+                     font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM,
                      justify="left", anchor="w", wraplength=760).pack(fill="x")
 
     def calculate(self) -> Result:
@@ -681,7 +682,7 @@ class NuclearTab(BaseTab):
             frame = ctk.CTkFrame(self.area, fg_color="transparent")
             frame.pack(fill="x", pady=3)
             ctk.CTkLabel(frame, text=label, font=("Segoe UI", 12),
-                         text_color="#e8e8e8", width=330,
+                         text_color=theme.COLOR_TEXT, width=330,
                          anchor="w").pack(side="left")
             entry = ctk.CTkEntry(frame, width=width, font=("Consolas", 13))
             entry.pack(side="left")
@@ -893,7 +894,7 @@ class UncertaintyTab(BaseTab):
             frame = ctk.CTkFrame(self.area, fg_color="transparent")
             frame.pack(fill="x", pady=3)
             ctk.CTkLabel(frame, text=label, font=("Segoe UI", 12),
-                         text_color="#e8e8e8", width=340,
+                         text_color=theme.COLOR_TEXT, width=340,
                          anchor="w").pack(side="left")
             entry = ctk.CTkEntry(frame, width=width, font=("Consolas", 13))
             entry.pack(side="left")
@@ -1179,11 +1180,11 @@ class HandbookTab(BaseTab):
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", pady=4)
         ctk.CTkLabel(row, text="Поиск:", font=("Segoe UI", 12),
-                     text_color="#e8e8e8").pack(side="left", padx=(0, 8))
+                     text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 8))
         self.query = ctk.CTkEntry(row, width=260, font=("Consolas", 13))
         self.query.pack(side="left")
         ctk.CTkLabel(row, text="(пусто — показать всё)", font=("Segoe UI", 10),
-                     text_color="#9a9a9a").pack(side="left", padx=8)
+                     text_color=theme.COLOR_TEXT_DIM).pack(side="left", padx=8)
 
     def calculate(self) -> Result:
         section = self.section.get()
@@ -1471,7 +1472,7 @@ class GraphsTab(BaseTab):
             frame = ctk.CTkFrame(self.area, fg_color="transparent")
             frame.pack(fill="x", pady=3)
             ctk.CTkLabel(frame, text=label, font=("Segoe UI", 12),
-                         text_color="#e8e8e8", width=320,
+                         text_color=theme.COLOR_TEXT, width=320,
                          anchor="w").pack(side="left")
             entry = ctk.CTkEntry(frame, width=width, font=("Consolas", 13))
             entry.pack(side="left")
@@ -1608,7 +1609,7 @@ class GraphsTab(BaseTab):
                 style = "--" if "водород" in label or "кислород" in label else "-"
                 axes.plot(xs, ys, style, linewidth=1.6, label=label)
             axes.legend(facecolor="#242424", edgecolor="#3a3a3a",
-                        labelcolor="#e8e8e8", fontsize=8)
+                        labelcolor=theme.COLOR_TEXT, fontsize=8)
         elif result.meta.get("series"):
             # Последовательные реакции: три кривые
             series = result.meta["series"]
@@ -1617,18 +1618,18 @@ class GraphsTab(BaseTab):
                 ys = [p[key] for p in series]
                 axes.plot(xs, ys, linewidth=1.8, label=key)
             axes.legend(facecolor="#242424", edgecolor="#3a3a3a",
-                        labelcolor="#e8e8e8")
+                        labelcolor=theme.COLOR_TEXT)
         else:
             xs = [p[0] for p in data]
             ys = [p[1] for p in data]
-            axes.plot(xs, ys, color="#4facfe", linewidth=2)
+            axes.plot(xs, ys, color=theme.COLOR_ACCENT, linewidth=2)
 
-        axes.set_xlabel(result.meta.get("x_label", "x"), color="#e8e8e8",
+        axes.set_xlabel(result.meta.get("x_label", "x"), color=theme.COLOR_TEXT,
                         fontsize=10)
-        axes.set_ylabel(result.meta.get("y_label", "y"), color="#e8e8e8",
+        axes.set_ylabel(result.meta.get("y_label", "y"), color=theme.COLOR_TEXT,
                         fontsize=10)
-        axes.set_title(result.label, color="#e8e8e8", fontsize=11)
-        axes.tick_params(colors="#9a9a9a", labelsize=9)
+        axes.set_title(result.label, color=theme.COLOR_TEXT, fontsize=11)
+        axes.tick_params(colors=theme.COLOR_TEXT_DIM, labelsize=9)
         for spine in axes.spines.values():
             spine.set_color("#3a3a3a")
         axes.grid(True, alpha=0.2, color="#666666")
@@ -1676,7 +1677,7 @@ class HistoryTab(BaseTab):
         self.detail_card.pack(fill="x", padx=2, pady=(10, 0))
         self.detail_text = ctk.CTkTextbox(self.detail_card.body, height=180,
                                           font=("Consolas", 11),
-                                          fg_color="#2b2b2b", wrap="word")
+                                          fg_color=theme.COLOR_CARD_ALT, wrap="word")
         # Пустое поле выглядит как провал: подсказываем, что делать
         self.detail_text.insert(
             "1.0", "Выберите запись в таблице ниже — здесь появится "
@@ -1809,18 +1810,18 @@ class PracticeTab(BaseTab):
 
         self.task_text = ctk.CTkTextbox(parent, height=110,
                                         font=("Segoe UI", 12),
-                                        fg_color="#2b2b2b", wrap="word")
+                                        fg_color=theme.COLOR_CARD_ALT, wrap="word")
         self.task_text.pack(fill="x")
         self.task_text.configure(state="disabled")
 
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", pady=8)
         ctk.CTkLabel(row, text="Ваш ответ:", font=("Segoe UI", 12),
-                     text_color="#e8e8e8").pack(side="left", padx=(0, 8))
+                     text_color=theme.COLOR_TEXT).pack(side="left", padx=(0, 8))
         self.answer = ctk.CTkEntry(row, width=180, font=("Consolas", 13))
         self.answer.pack(side="left")
         self.unit_label = ctk.CTkLabel(row, text="", font=("Segoe UI", 11),
-                                       text_color="#9a9a9a")
+                                       text_color=theme.COLOR_TEXT_DIM)
         self.unit_label.pack(side="left", padx=8)
 
         self._task = None

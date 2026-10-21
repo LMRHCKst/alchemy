@@ -24,6 +24,25 @@ COLOR_TEXT_DIM = "#9a9a9a"
 COLOR_TEXT_FAINT = "#6d6d6d"
 COLOR_BORDER = "#3a3a3a"
 
+#: исходные (тёмные) значения: к ним возвращаемся при переключении темы
+_DARK_VALUES = {
+    "COLOR_BG": COLOR_BG,
+    "COLOR_SIDEBAR": COLOR_SIDEBAR,
+    "COLOR_CARD": COLOR_CARD,
+    "COLOR_CARD_ALT": COLOR_CARD_ALT,
+    "COLOR_FIELD": COLOR_FIELD,
+    "COLOR_ACCENT": COLOR_ACCENT,
+    "COLOR_ACCENT_DIM": COLOR_ACCENT_DIM,
+    "COLOR_OK": COLOR_OK,
+    "COLOR_WARN": COLOR_WARN,
+    "COLOR_ERROR": COLOR_ERROR,
+    "COLOR_TEXT": COLOR_TEXT,
+    "COLOR_TEXT_DIM": COLOR_TEXT_DIM,
+    "COLOR_TEXT_FAINT": COLOR_TEXT_FAINT,
+    "COLOR_BORDER": COLOR_BORDER,
+}
+
+
 # --------------------------------------------------------------------------
 # Шрифты
 # --------------------------------------------------------------------------
@@ -394,6 +413,18 @@ QTextEdit {{
     color: {COLOR_ACCENT};
 }}
 
+#ResultValue[muted="true"] {{
+    color: {COLOR_TEXT_DIM};
+}}
+
+#ResultValue[error="true"] {{
+    color: {COLOR_ERROR};
+}}
+
+#ResultValue[warn="true"] {{
+    color: {COLOR_WARN};
+}}
+
 #ResultMethod {{
     color: {COLOR_TEXT_DIM};
     font-size: {FONT_SMALL}pt;
@@ -469,21 +500,69 @@ QToolTip {{
 # поэтому светлая тема делается заменой: так один и тот же код рисует
 # две разные картинки, и не надо держать две копии стилей.
 LIGHT_MAP = {
-    "#1a1a1a": "#f5f6f8",   # фон окна
+    "#1a1a1a": "#f2f4f7",   # фон окна
     "#141414": "#ffffff",   # сайдбар
     "#242424": "#ffffff",   # карточки
-    "#2b2b2b": "#eef1f5",   # поля и кнопки
-    "#1f1f1f": "#f0f2f6",   # наведение
-    "#e8e8e8": "#1c1d20",   # текст
-    "#9a9a9a": "#5d636c",   # вторичный текст
-    "#6d6d6d": "#8a9099",   # приглушённый
-    "#3a3a3a": "#d9dee5",   # границы
-    "#4facfe": "#1668c9",   # акцент
-    "#2c6fa8": "#d3e5fb",   # выделение
-    "#2ecc71": "#1f9d55",
-    "#f39c12": "#b9770e",
-    "#e74c3c": "#c0392b",
+    "#2b2b2b": "#e9edf3",   # поля и кнопки
+    "#1f1f1f": "#e3e8f0",   # наведение
+    "#1d1d1d": "#e6eaf1",
+    "#333333": "#c9d0da",
+    "#3d3d3d": "#bcc4cf",
+    "#4a4a4a": "#b3bbc7",
+    "#4d4d4d": "#aab3c0",
+    "#e8e8e8": "#111827",   # основной текст: почти чёрный
+    "#9a9a9a": "#4b5563",   # вторичный текст: заметнее
+    "#6d6d6d": "#4b5563",   # приглушённый
+    "#3a3a3a": "#cfd6e0",   # границы
+    "#4facfe": "#1a5fb4",   # акцент
+    "#7fc3ff": "#0f4c9c",
+    "#2c6fa8": "#d6e4f7",   # фон выделения в полях
+    "#2563a8": "#1a5fb4",
+    "#2ecc71": "#15803d",
+    "#f39c12": "#a16207",
+    "#e74c3c": "#b91c1c",
 }
+
+#: Что дописать в светлой теме сверх замены цветов. Список выделения
+#: в меню и текст на акцентных кнопках заменой не лечатся: там фон и
+#: цвет текста подбираются парой, иначе получается белое на светлом.
+LIGHT_OVERRIDES = """
+QListWidget#SidebarList::item:selected {
+    background-color: #d6e4f7;
+    color: #0b2e59;
+    border-left: 3px solid #1a5fb4;
+    padding-left: 7px;
+}
+
+QListWidget#SidebarList::item:selected:hover {
+    background-color: #c8dcf5;
+}
+
+QPushButton#Primary, QPushButton:checked {
+    color: #ffffff;
+}
+
+QMenu::item:selected {
+    background-color: #d6e4f7;
+    color: #0b2e59;
+}
+
+QTabBar::tab:selected {
+    color: #0b2e59;
+}
+
+#ResultValue {
+    color: #0f4c9c;
+}
+
+#ResultWarning {
+    color: #92400e;
+}
+
+#ResultError {
+    color: #b91c1c;
+}
+"""
 
 
 def stylesheet(light: bool = False) -> str:
@@ -493,11 +572,28 @@ def stylesheet(light: bool = False) -> str:
     text = STYLESHEET
     for dark, bright in LIGHT_MAP.items():
         text = text.replace(dark, bright)
-    return text
+    return text + LIGHT_OVERRIDES
+
+
+def _use_colors(light: bool) -> None:
+    """Подменить константы темы.
+
+    Часть интерфейса задаёт цвет при создании виджета и запоминает его.
+    Чтобы такие виджеты получали правильный цвет, константы модуля
+    переключаются вместе со стилями: код читает их в момент создания.
+    """
+    global COLOR_BG, COLOR_SIDEBAR, COLOR_CARD, COLOR_CARD_ALT, COLOR_FIELD
+    global COLOR_ACCENT, COLOR_ACCENT_DIM, COLOR_OK, COLOR_WARN, COLOR_ERROR
+    global COLOR_TEXT, COLOR_TEXT_DIM, COLOR_TEXT_FAINT, COLOR_BORDER
+
+    for name, dark in _DARK_VALUES.items():
+        value = LIGHT_MAP.get(dark, dark) if light else dark
+        globals()[name] = value
 
 
 def apply_theme(app: QApplication, light: bool = False) -> None:
     """Применить тему к приложению."""
+    _use_colors(light)
     app.setStyle("Fusion")
 
     def color(name: str) -> str:
@@ -513,6 +609,10 @@ def apply_theme(app: QApplication, light: bool = False) -> None:
     palette.setColor(QPalette.ButtonText, QColor(color(COLOR_TEXT)))
     palette.setColor(QPalette.Highlight, QColor(color(COLOR_ACCENT)))
     palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+    # неактивные элементы: в светлой теме стандартный серый слишком бледный
+    for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
+        palette.setColor(QPalette.Disabled, role, QColor(color(COLOR_TEXT_FAINT)))
+
     palette.setColor(QPalette.ToolTipBase, QColor(color(COLOR_CARD_ALT)))
     palette.setColor(QPalette.ToolTipText, QColor(color(COLOR_TEXT)))
     app.setPalette(palette)

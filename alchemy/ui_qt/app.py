@@ -273,12 +273,32 @@ class AlchemyApp(QMainWindow):
         self.open_tab(cls)
         self._remember_tab(cls)
 
+
+    def _rebuild_open_tabs(self) -> None:
+        """Пересобрать открытые вкладки после смены темы.
+
+        Часть надписей задаёт цвет при создании. Чтобы светлая тема
+        применилась целиком и сразу, вкладки пересоздаются: это дешевле,
+        чем обходить все виджеты и уговаривать их перекраситься.
+        """
+        current = self.current_tab()
+        cls = type(current) if current is not None else None
+
+        for widget in list(self._tabs.values()):
+            self.stack.removeWidget(widget)
+            widget.deleteLater()
+        self._tabs.clear()
+
+        if cls is not None:
+            self.open_tab(cls)
+
     def _toggle_theme(self, light: bool) -> None:
         """Переключить тему и запомнить выбор."""
         from . import prefs
 
         prefs.set_light(light)
         theme.apply_theme(QApplication.instance(), light=light)
+        self._rebuild_open_tabs()
         self.status_label.setText(
             "Светлая тема" if light else "Тёмная тема")
 

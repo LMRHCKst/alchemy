@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from . import widgets as ctk
 from .components import BaseTab, LabeledCombo, LabeledEntry
+from . import theme
 from ..core.errors import AlchemyError
 from ..core.results import Result
 from ..engines import organic as ORG
@@ -77,7 +78,7 @@ class OrganicClassesTab(BaseTab):
                     "и суффиксы по классам.")
 
         ctk.CTkLabel(self.area, text=hint, font=("Segoe UI", 10),
-                     text_color="#9a9a9a", anchor="w",
+                     text_color=theme.COLOR_TEXT_DIM, anchor="w",
                      wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 
@@ -124,7 +125,7 @@ class CombustionTab(BaseTab):
             text="Масса CO2 и объём CO2 — взаимозаменяемы, заполните что-то "
                  "одно. Молярную массу указывайте, если нужна молекулярная "
                  "формула, а не простейшая.",
-            font=("Segoe UI", 10), text_color="#9a9a9a", anchor="w",
+            font=("Segoe UI", 10), text_color=theme.COLOR_TEXT_DIM, anchor="w",
             wraplength=760).pack(fill="x", pady=(6, 0))
 
     def _number(self, key: str, required: bool = False) -> float:
@@ -202,7 +203,7 @@ class OrganicReactionsTab(BaseTab):
 
         if hint:
             ctk.CTkLabel(self.area, text=hint, font=("Segoe UI", 10),
-                         text_color="#9a9a9a", anchor="w",
+                         text_color=theme.COLOR_TEXT_DIM, anchor="w",
                          wraplength=760).pack(fill="x", pady=(6, 0))
         self.bind_enter()
 

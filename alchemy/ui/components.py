@@ -476,10 +476,26 @@ class ResultView(QFrame):
 
     # ---------------- показ ----------------
 
+
+    def _value_state(self, state: str = "") -> None:
+        """Переключить цвет значения через стиль, а не встроенным цветом.
+
+        Встроенный `setStyleSheet` запоминает цвет из тёмной темы и в
+        светлой остаётся тёмным. Свойство и стиль переживают смену темы.
+        """
+        self.value_label.setProperty("muted", state == "muted")
+        self.value_label.setProperty("error", state == "error")
+        self.value_label.setProperty("warn", state == "warn")
+        style = self.value_label.style()
+        if style is not None:
+            style.unpolish(self.value_label)
+            style.polish(self.value_label)
+        self.value_label.update()
+
     def clear(self) -> None:
         self.label.setText("Результат появится здесь")
         self.value_label.setText("—")
-        self.value_label.setStyleSheet(f"color: {theme.COLOR_TEXT_DIM};")
+        self._value_state("muted")
         self.method_label.setText("")
         self._clear_warnings()
         self.table.setVisible(False)
@@ -510,12 +526,13 @@ class ResultView(QFrame):
             self.value_label.setVisible(True)
             if result.value is None:
                 self.value_label.setText("расчёт не выполнен")
-                self.value_label.setStyleSheet(f"color: {theme.COLOR_ERROR};")
+                self._value_state("error")
             else:
                 self.value_label.setText(result.formatted())
-                color = (theme.COLOR_ERROR if result.has_warnings
-                         else theme.COLOR_ACCENT)
-                self.value_label.setStyleSheet(f"color: {color};")
+                if result.has_warnings:
+                    self._value_state("warn")
+                else:
+                    self._value_state("")
 
         self.method_label.setText(result.method or "")
         self._fill_warnings(result.warnings)
@@ -539,7 +556,7 @@ class ResultView(QFrame):
         self.label.setText("Ошибка расчёта")
         self.value_label.setVisible(True)
         self.value_label.setText("—")
-        self.value_label.setStyleSheet(f"color: {theme.COLOR_ERROR};")
+        self._value_state("error")
         self.method_label.setText("")
         self._fill_warnings([message], is_error=True)
         self.table.setVisible(False)
