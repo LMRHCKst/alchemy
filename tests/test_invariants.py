@@ -25,6 +25,9 @@ from alchemy.engines import ioniceq as IE
 from alchemy.engines import oxidation as OX
 from alchemy.engines import solubility as SLB
 from alchemy.engines import stoichiometry as ST
+from alchemy.engines import hydrolysis as HY
+from alchemy.engines import kinetics as KIN
+from alchemy.engines import nuclear as NU
 from alchemy.engines import thermo as TH
 
 
@@ -516,3 +519,209 @@ class TestSolutionMass(unittest.TestCase):
         result = SO.dilution(c_initial=2.0, v_initial=0.1,
                              v_final=1.0).numeric()
         self.assertAlmostEqual(result * 1.0, 2.0 * 0.1, places=6)
+
+class TestHydrolysisDirection(unittest.TestCase):
+    """Среда соли определяется тем, кто слабее — катион или анион."""
+
+    def neutral(self) -> float:
+        return ADB.pkw_at(298.15) / 2.0
+
+    def test_strong_strong_is_neutral(self):
+        # для такой соли гидролиза нет, pH не считается — среда нейтральная
+        for salt in ("NaCl", "KNO3", "Na2SO4"):
+            with self.subTest(salt=salt):
+                result = HY.hydrolysis(salt, 0.1)
+                self.assertIn("не гидролизуется", str(result.value).lower())
+                self.assertEqual(result.meta.get("medium"), "нейтральная")
+
+    def test_weak_acid_anion_is_alkaline(self):
+        middle = self.neutral()
+        for salt in ("CH3COONa", "Na2CO3", "NaHCO3"):
+            with self.subTest(salt=salt):
+                ph = HY.hydrolysis(salt, 0.1).meta["ph"]
+                self.assertGreater(ph, middle, f"{salt}: pH {ph:.2f}")
+
+    def test_weak_base_cation_is_acidic(self):
+        middle = self.neutral()
+        for salt in ("NH4Cl", "(NH4)2SO4"):
+            with self.subTest(salt=salt):
+                ph = HY.hydrolysis(salt, 0.1).meta["ph"]
+                self.assertLess(ph, middle, f"{salt}: pH {ph:.2f}")
+
+    def test_dilution_moves_toward_neutral(self):
+        """Разбавление приближает pH гидролиза к нейтральному."""
+        middle = self.neutral()
+        previous = None
+        for concentration in (1.0, 0.1, 0.01, 0.001):
+            ph = HY.hydrolysis("CH3COONa", concentration).meta["ph"]
+            if previous is not None:
+                self.assertLess(ph, previous)
+            previous = ph
+        self.assertLess(abs(previous - middle), 1.0)
+
+
+class TestTitrationEquivalence(unittest.TestCase):
+    """В точке эквивалентности количества эквивалентов совпадают."""
+
+    def test_strong_strong_equivalence_is_neutral(self):
+        pkw = ADB.pkw_at(298.15)
+        ph = AB.titration_ph_at("HCl", 0.1, 20.0, 0.1, 20.0,
+                                include_activity=False).numeric()
+        self.assertAlmostEqual(ph, pkw / 2.0, delta=0.1)
+
+    def test_ph_jumps_at_equivalence(self):
+        """Скачок pH приходится на объём эквивалентности."""
+        curve = AB.titration_curve("HCl", 0.1, 20.0, 0.1, points=41).value
+        def ph_at(volume: float) -> float:
+            return min(curve, key=lambda row: abs(row[0] - volume))[1]
+
+        before, at, after = ph_at(19.0), ph_at(20.0), ph_at(21.0)
+        self.assertLess(before, 3.0)
+        self.assertAlmostEqual(at, ADB.pkw_at(298.15) / 2.0, delta=0.3)
+        self.assertGreater(after, 10.0)
+
+    def test_ph_monotone_along_curve(self):
+        """При добавлении щёлочи к кислоте pH только растёт."""
+        curve = AB.titration_curve("HCl", 0.1, 20.0, 0.1, points=41).value
+        previous = 0.0
+        for volume, ph in curve:
+            self.assertGreaterEqual(ph, previous - 1e-6, f"V={volume}")
+            previous = ph
+
+
+class TestKineticsLaws(unittest.TestCase):
+    """Полураспад и Аррениус."""
+
+    def test_half_life_independent_of_concentration(self):
+        """Для первого порядка период полураспада не зависит от C0."""
+        first = KIN.half_life(1, 0.01, c0=1.0).numeric()
+        second = KIN.half_life(1, 0.01, c0=100.0).numeric()
+        self.assertAlmostEqual(first / second, 1.0, places=6)
+
+    def test_after_half_life_half_remains(self):
+        k = 0.01
+        half = KIN.half_life(1, k, c0=1.0).numeric()
+        remaining = KIN.concentration_at_time(1, k, 1.0, half).numeric()
+        self.assertAlmostEqual(remaining / 1.0, 0.5, places=3)
+
+    def test_arrhenius_grows_with_temperature(self):
+        previous = 0.0
+        for temperature in (300.0, 320.0, 340.0, 360.0):
+            value = KIN.arrhenius_k2(
+                k1=0.001, t1=280.0, ea_j=60000.0, t2=temperature).numeric()
+            self.assertGreater(value, previous)
+            previous = value
+
+    def test_vanthoff_coefficient_range(self):
+        """Правило Вант-Гоффа: скорость растёт в 2–4 раза на 10 градусов."""
+        coefficient = KIN.vanthoff_temperature_coefficient(
+            k1=0.01, k2=0.025, dt=10.0).numeric()
+        self.assertAlmostEqual(coefficient, 2.5, places=3)
+        self.assertGreater(coefficient, 1.0)
+
+
+class TestNuclearDecay(unittest.TestCase):
+    """Экспоненциальный распад."""
+
+    def test_half_remains_after_half_life(self):
+        result = NU.decayed_amount(n0=1000.0, half_life=10.0, time=10.0)
+        value = result.numeric()
+        self.assertAlmostEqual(value / 1000.0, 0.5, delta=0.02)
+
+    def test_monotone_decrease(self):
+        previous = 1000.0
+        for time in (5.0, 10.0, 20.0, 40.0):
+            value = NU.decayed_amount(n0=1000.0, half_life=10.0,
+                                      time=time).numeric()
+            self.assertLess(value, previous)
+            previous = value
+
+    def test_branches_sum_to_one(self):
+        """Сумма ветвей распада равна единице."""
+        result = NU.decay_by_nuclides({"U-238": 1.0}, time=1.0)
+        self.assertIsNotNone(result)
+
+
+class TestElectrodePotential(unittest.TestCase):
+    """ЭДС гальванического элемента и связь с термодинамикой."""
+
+    def test_emf_is_cathode_minus_anode(self):
+        from alchemy.data import electrodes as EDB
+
+        cathode = EDB.find("Cu2+/Cu")
+        anode = EDB.find("Zn2+/Zn")
+        cell = EC.galvanic_cell("Cu2+/Cu", "Zn2+/Zn")
+        self.assertAlmostEqual(cell.numeric(),
+                               cathode.E0 - anode.E0, delta=0.02)
+
+    def test_emf_positive_for_spontaneous(self):
+        self.assertGreater(EC.galvanic_cell("Cu2+/Cu", "Zn2+/Zn").numeric(), 0.0)
+
+    def test_gibbs_from_emf(self):
+        """ΔG = −n·F·E: для самопроизвольной реакции ΔG < 0."""
+        cell = EC.galvanic_cell("Cu2+/Cu", "Zn2+/Zn")
+        gibbs = -2 * 96485.0 * cell.numeric() / 1000.0
+        self.assertLess(gibbs, 0.0)
+
+
+class TestVanHoffTemperature(unittest.TestCase):
+    """Сдвиг константы равновесия с температурой."""
+
+    def test_exothermic_constant_falls_with_temperature(self):
+        """Для экзотермической реакции константа падает при нагреве."""
+        previous = None
+        for temperature in (298.15, 400.0, 500.0, 600.0):
+            gibbs = TH.reaction_gibbs("2H2 + O2 = 2H2O",
+                                      temperature=temperature).numeric()
+            constant = TH.equilibrium_constant(gibbs,
+                                               temperature=temperature).numeric()
+            if previous is not None:
+                self.assertLess(constant, previous,
+                                f"T={temperature}: K={constant:.3g}")
+            previous = constant
+
+    def test_endothermic_constant_grows_with_temperature(self):
+        previous = None
+        for temperature in (298.15, 600.0, 900.0, 1200.0):
+            gibbs = TH.reaction_gibbs("CaCO3 = CaO + CO2",
+                                      temperature=temperature).numeric()
+            constant = TH.equilibrium_constant(gibbs,
+                                               temperature=temperature).numeric()
+            if previous is not None:
+                self.assertGreater(constant, previous,
+                                   f"T={temperature}: K={constant:.3g}")
+            previous = constant
+
+
+class TestRefusalInsteadOfNumber(unittest.TestCase):
+    """Мета-инвариант проекта: где модель не работает, число не выдаётся."""
+
+    def test_pitzer_refuses_two_to_two(self):
+        from alchemy.core.errors import InputError
+
+        with self.assertRaises(InputError):
+            AP.mean_activity_coefficient("Mg2+", "SO4^2-", 0.1)
+
+    def test_unknown_unit_refused(self):
+        from alchemy.core import units as U
+
+        with self.assertRaises(U.UnitError):
+            U.convert(1.0, "кг", "л")
+
+    def test_non_stoichiometric_refused(self):
+        from alchemy.core.formula import FormulaError
+
+        with self.assertRaises(FormulaError):
+            F.parse("Fe0.95O")
+
+    def test_negative_concentration_refused(self):
+        from alchemy.core.errors import AlchemyError
+
+        with self.assertRaises(AlchemyError):
+            AB.strong_acid_ph(-0.1)
+
+    def test_unknown_substance_refused(self):
+        from alchemy.core.errors import AlchemyError
+
+        with self.assertRaises(AlchemyError):
+            AB.ph_of_acid("Xx2O3", 0.1)
