@@ -34,7 +34,7 @@ class BalanceError(InputError):
 # Разбор записи реакции
 # --------------------------------------------------------------------------
 
-_SPLIT_RE = re.compile(r"\s*(?:\+|→|->|=>|=)\s*")
+_SPLIT_RE = re.compile(r"\s*(?:\+|→|⇄|⇌|<=>|->|=>|=)\s*")
 
 
 def parse_side(side: str | Iterable[str]) -> list[str]:
@@ -131,15 +131,17 @@ def parse_equation(equation: str) -> tuple[list[str], list[str]]:
     if not text:
         raise BalanceError("Уравнение реакции не задано")
 
-    # Ищем разделитель между левой и правой частью
-    for sep in ("=>", "->", "→", "="):
+    # Ищем разделитель между левой и правой частью. Обратимые стрелки
+    # (⇄, ⇌, <=>) школьники пишут так же часто, как «=», поэтому они
+    # здесь тоже разделители: для уравнивания направление не важно.
+    for sep in ("<=>", "⇄", "⇌", "=>", "->", "→", "="):
         if sep in text:
             left, _, right = text.partition(sep)
             return parse_side(left), parse_side(right)
 
     raise BalanceError(
         "В уравнении не найден разделитель сторон. "
-        "Используйте «=», «->» или «→»"
+        "Используйте «=», «->», «→» или «⇄»"
     )
 
 

@@ -1035,6 +1035,9 @@ def _check_solubility_limit(res: Result, formula: str, concentration: float,
         f"реальный pH будет ниже расчётного."
     )
     res.with_meta("solubility_limit", limit)
+    note = SDB.note_for(formula)
+    if note:
+        res.with_assumption(note)
 
 
 def ph_of_base(base_query: str, concentration: float,

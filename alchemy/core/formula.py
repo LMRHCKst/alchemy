@@ -109,6 +109,37 @@ _HOMOATOMIC_POLYIONS = {
 }
 
 
+def _normalize_charge_orders(s: str) -> str:
+    """Привести необычные записи заряда к виду «формула^2-».
+
+    Встречаются три формы, которых не понимал разбор:
+
+        «SO4-2»    — знак перед цифрой (обратный порядок);
+        «SO4(2-)»  — заряд в круглых скобках в конце;
+        «SO4(-2)»  — то же, знак перед цифрой.
+
+    Круглые скобки здесь не группа атомов, а обозначение заряда, поэтому
+    их надо снять до разбора состава.
+    """
+    text = s.strip()
+
+    # заряд в скобках: SO4(2-), SO4(-2), [Cu(NH3)4](2+)
+    match = re.search(r"\((\d*)([+-])(\d*)\)\s*$", text)
+    if match:
+        head = text[:match.start()].rstrip()
+        if head:
+            digits = match.group(1) or match.group(3) or ""
+            return f"{head}^{digits}{match.group(2)}"
+
+    # знак перед цифрой: SO4-2, Fe-3
+    match = re.search(r"([A-Za-z0-9\)\]])([+-])(\d+)\s*$", text)
+    if match:
+        head = text[:match.start() + 1]
+        return f"{head}^{match.group(3)}{match.group(2)}"
+
+    return s
+
+
 def _resolve_bare_charge(s: str) -> str:
     """Разобрать запись «цифры + знак» на конце формулы.
 
@@ -167,6 +198,20 @@ def _resolve_bare_charge(s: str) -> str:
     # SO42-, Cr2O72- — последняя цифра заряд, остальные индекс
     subscript, magnitude = digits[:-1], digits[-1]
     return f"{head}{subscript}^{magnitude}{sign}"
+
+
+def _replace_hydrate_dashes(s: str) -> str:
+    """Дефис между формулами — тоже разделитель гидрата.
+
+    «CuSO4-5H2O» пишут вместо «CuSO4*5H2O». Дефис при этом не должен
+    быть зарядом: «SO4-2» и «Cl-» обрабатываются в другом месте, и там
+    знак стоит после цифр или сразу за элементом без коэффициента.
+    """
+    match = re.search(r"(?<=[A-Za-z0-9\)])\s*-\s*(\d+)\s*(?=[A-Z\[\(])",
+                      s)
+    if not match:
+        return s
+    return s[:match.start()] + "*" + s[match.start():].lstrip("-").lstrip()
 
 
 def _replace_hydrate_dots(s: str) -> str:
@@ -297,9 +342,15 @@ def normalize_input(text: str) -> str:
     for ch in ("–", "—", "−"):
         s = s.replace(ch, "-")
 
+    # Дефис между формулами — тоже разделитель гидрата: CuSO4-5H2O
+    s = _replace_hydrate_dashes(s)
+
     # Точка между формулами — это гидрат, а не десятичная дробь.
     # «CuSO4.5H2O» -> «CuSO4*5H2O», но «0.5O2» остаётся дробью.
     s = _replace_hydrate_dots(s)
+
+    # Необычный порядок заряда: SO4-2 и SO4(2-)
+    s = _normalize_charge_orders(s)
 
     # Убрать пробелы внутри формулы
     s = s.replace(" ", "")
@@ -601,6 +652,23 @@ STATE_ALIASES = {
 }
 
 
+#: стрелки после формулы — то же обозначение состояния, что (г) и (тв)
+_ARROW_STATES = {
+    "↓": "s",   # осадок
+    "↑": "g",   # газ
+    "⬇": "s",
+    "⬆": "g",
+}
+
+
+def _strip_arrows(text: str) -> tuple[str, str | None]:
+    """Убрать стрелку осадка или газа в конце записи."""
+    for arrow, state in _ARROW_STATES.items():
+        if text.endswith(arrow):
+            return text[:-1].strip(), state
+    return text, None
+
+
 def split_state(text: str) -> tuple[str, str | None]:
     """Отделить обозначение агрегатного состояния от формулы.
 
@@ -608,6 +676,9 @@ def split_state(text: str) -> tuple[str, str | None]:
     Состояние влияет на выбор термодинамических данных, но не на состав.
     """
     s = str(text).strip()
+    s, arrow_state = _strip_arrows(s)
+    if arrow_state is not None:
+        return s, arrow_state
     m = _STATE_SUFFIX_RE.search(s)
     if not m:
         return s, None

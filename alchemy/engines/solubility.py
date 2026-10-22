@@ -93,6 +93,16 @@ def alpha_unprotonated(anion: str, ph: float) -> float:
     return 1.0 / total
 
 
+def _add_polymorph_note(res: Result, formula: str) -> None:
+    """Предупредить, что Ksp зависит от формы осадка."""
+    try:
+        note = SDB.note_for(formula)
+    except Exception:
+        note = None
+    if note:
+        res.with_assumption(note)
+
+
 def _solubility_from_alpha(ksp: float, m: int, a: int, alpha: float) -> float:
     """Растворимость соли при заданной доле непротонированного аниона."""
     denominator = (m ** m) * (a ** a) * (alpha ** a)
@@ -120,6 +130,7 @@ def solubility_pure_water(salt: str) -> Result:
     res.with_step(f"s = ({solid.Ksp:.3g} / ({m}^{m}·{a}^{a}))^"
                   f"(1/{m + a}) = {s:.3e} моль/л")
     res.with_meta("ksp", solid.Ksp)
+    _add_polymorph_note(res, salt)
     res.with_source("Справочник произведений растворимости")
     return res
 
@@ -159,6 +170,7 @@ def solubility_at_ph(salt: str, ph: float) -> Result:
             f"Растворимость {s:.2f} моль/л — модель Дебая и понятие Ksp "
             f"здесь уже не работают: раствор неидеальный, нужны опытные данные.")
     res.with_meta("alpha", alpha)
+    _add_polymorph_note(res, salt)
     res.with_meta("pure_water", base)
     res.with_meta("ratio", s / base if base else 0.0)
     res.with_source("Справочник Ksp и констант кислотности")
@@ -220,5 +232,6 @@ def ph_for_dissolution(salt: str, target: float) -> Result:
     res.with_step(f"pH = {ph:.2f}")
     res.with_meta("ph", ph)
     res.with_meta("alpha_needed", alpha_needed)
+    _add_polymorph_note(res, salt)
     res.with_source("Справочник Ksp и констант кислотности")
     return res

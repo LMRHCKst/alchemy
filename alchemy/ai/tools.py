@@ -24,6 +24,7 @@ from ..engines import acidbase, balancer, classification, electrochemistry
 from ..engines import equilibrium, gases, hardness, kinetics, organic, oxidation
 from ..engines import qualitative, redox, solutions, stoichiometry, thermo
 from ..engines import hydrolysis as hydrolysis_engine
+from ..engines import activity_pitzer as pitzer_engine
 from ..engines import solubility as solubility_engine
 from ..engines import ioniceq
 from ..engines import valence as valence_engine
@@ -549,6 +550,21 @@ TOOLS: list[dict] = [
             {"salt": {**_S, "description": "формула соли"},
              "concentration": {**_N, "description": "моль/л, по умолчанию 0.1"}},
             ["salt"]),
+
+    _schema("pitzer_gamma", "Коэффициент активности электролита по Питцеру. "
+            "Работает для NaCl, KCl, NaBr, KBr, CaCl2, MgCl2, Na2SO4, K2SO4; "
+            "для 2:2 электролитов отказывает.",
+            {"cation": {**_S, "description": "катион, например Na+"},
+             "anion": {**_S, "description": "анион, например Cl-"},
+             "molality": {**_N, "description": "моляльность, моль/кг"}},
+            ["cation", "anion", "molality"]),
+
+    _schema("activity_model_comparison", "Сравнение трёх моделей активности "
+            "на одном растворе: предельный закон, Дэвис, Питцер.",
+            {"cation": {**_S, "description": "катион"},
+             "anion": {**_S, "description": "анион"},
+             "molality": {**_N, "description": "моляльность, моль/кг"}},
+            ["cation", "anion", "molality"]),
 ]
 
 #: имя → функция
@@ -607,6 +623,20 @@ def hydrolysis_stages(salt: str, concentration: float = 0.1) -> ToolResult:
 
 
 
+
+def pitzer_gamma(cation: str, anion: str, molality: float) -> ToolResult:
+    """Коэффициент активности электролита по Питцеру."""
+    return _call(pitzer_engine.pitzer_gamma, cation=cation, anion=anion,
+                 molality=molality)
+
+
+def activity_model_comparison(cation: str, anion: str,
+                              molality: float) -> ToolResult:
+    """Сравнить предельный закон, Дэвис и Питцер на одном растворе."""
+    return _call(pitzer_engine.model_comparison, cation=cation, anion=anion,
+                 molality=molality)
+
+
 REGISTRY: dict[str, Callable[..., ToolResult]] = {
     "molar_mass": molar_mass,
     "water_of_crystallization": water_of_crystallization,
@@ -635,6 +665,8 @@ REGISTRY: dict[str, Callable[..., ToolResult]] = {
     "half_life": half_life,
     "ionic_equation": ionic_equation,
     "hydrolysis": hydrolysis,
+    "pitzer_gamma": pitzer_gamma,
+    "activity_model_comparison": activity_model_comparison,
     "solubility_pure_water": solubility_pure_water,
     "solubility_at_ph": solubility_at_ph,
     "ph_for_dissolution": ph_for_dissolution,
