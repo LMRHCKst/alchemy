@@ -387,3 +387,132 @@ class TestParserInvariants(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestUnitConversion(unittest.TestCase):
+    """Единицы: обратимость, транзитивность, запрет чужих размерностей."""
+
+    def test_round_trip(self):
+        from alchemy.core import units as U
+
+        for value, first, second in ((1.0, "кг", "г"), (2.5, "л", "мл"),
+                                     (0.5, "км", "м")):
+            with self.subTest(unit=first):
+                forward = U.convert(value, first, second)
+                back = U.convert(forward, second, first)
+                self.assertAlmostEqual(back / value, 1.0, places=6)
+
+    def test_transitivity(self):
+        """Через промежуточную единицу — тот же результат."""
+        from alchemy.core import units as U
+
+        direct = U.convert(1.0, "кг", "мг")
+        stepwise = U.convert(U.convert(1.0, "кг", "г"), "г", "мг")
+        self.assertAlmostEqual(direct / stepwise, 1.0, places=6)
+
+    def test_unknown_unit_rejected(self):
+        """Неизвестная единица отклоняется, даже если она «та же самая»."""
+        from alchemy.core import units as U
+
+        with self.assertRaises(U.UnitError):
+            U.convert(1.0, "попугай", "попугай")
+
+    def test_different_dimensions_rejected(self):
+        from alchemy.core import units as U
+
+        with self.assertRaises(U.UnitError):
+            U.convert(1.0, "кг", "л")
+
+
+class TestBalanceCoefficients(unittest.TestCase):
+    """Коэффициенты взаимно просты, и balance согласован с is_balanced."""
+
+    def test_gcd_is_one(self):
+        cases = ["H2 + O2 = H2O", "Fe + O2 = Fe2O3",
+                 "C3H8 + O2 = CO2 + H2O", "KMnO4 + HCl = KCl + MnCl2 + Cl2 + H2O"]
+        for equation in cases:
+            with self.subTest(equation=equation):
+                result = BAL.balance(equation)
+                values = list(result.meta["coefficients"].values())
+                divisor = values[0]
+                for value in values[1:]:
+                    divisor = math.gcd(divisor, value)
+                self.assertEqual(divisor, 1, result.value)
+
+    def test_balance_then_is_balanced(self):
+        for equation in ("H2 + O2 = H2O", "C3H8 + O2 = CO2 + H2O",
+                         "NaOH + H2SO4 = Na2SO4 + H2O"):
+            with self.subTest(equation=equation):
+                balanced = BAL.balance(equation).value
+                self.assertTrue(BAL.is_balanced(balanced))
+
+
+class TestRedoxElectronBalance(unittest.TestCase):
+    """Сколько электронов отдано — столько и принято."""
+
+    def test_electrons_match(self):
+        """Сумма отданных электронов равна сумме принятых."""
+        from alchemy.engines import redox as RX
+
+        for equation in ("Zn + 2HCl = ZnCl2 + H2",
+                         "2Al + 6HCl = 2AlCl3 + 3H2",
+                         "Fe + CuSO4 = FeSO4 + Cu",
+                         "2Na + Cl2 = 2NaCl"):
+            with self.subTest(equation=equation):
+                rows = RX.electron_balance(equation).value
+                self.assertTrue(rows, equation)
+                given = sum(int(row["Электронов"]) for row in rows
+                            if "отдаёт" in row["Действие"])
+                taken = sum(int(row["Электронов"]) for row in rows
+                            if "принимает" in row["Действие"])
+                self.assertEqual(given, taken, f"{equation}: {given} ≠ {taken}")
+
+
+class TestThermoDirection(unittest.TestCase):
+    """Разворот реакции меняет знак энтальпии."""
+
+    def test_enthalpy_sign_changes(self):
+        forward = TH.reaction_enthalpy("C(тв) + O2 = CO2").numeric()
+        backward = TH.reaction_enthalpy("CO2 = C(тв) + O2").numeric()
+        self.assertAlmostEqual(forward, -backward, delta=1.0)
+
+    def test_equilibrium_constant_from_gibbs(self):
+        """K = exp(−ΔG/(RT)): при ΔG = 0 константа равна единице."""
+        value = TH.equilibrium_constant(0.0).numeric()
+        self.assertAlmostEqual(value, 1.0, places=6)
+
+
+class TestEquilibriumShift(unittest.TestCase):
+    """Принцип Ле Шателье: направление сдвига при изменении температуры."""
+
+    def test_endothermic_shifts_right_on_heating(self):
+        from alchemy.engines import equilibrium as EQ
+
+        result = EQ.shift_single("N2 + 3H2 = 2NH3", "температура", "increase")
+        text = (str(result.value) + " " + " ".join(result.steps)).lower()
+        # синтез аммиака экзотермичен: нагревание смещает влево
+        self.assertIn("влево", text)
+
+    def test_pressure_shifts_to_fewer_moles(self):
+        from alchemy.engines import equilibrium as EQ
+
+        result = EQ.shift_single("N2 + 3H2 = 2NH3", "давление", "increase")
+        text = (str(result.value) + " " + " ".join(result.steps)).lower()
+        self.assertIn("вправо", text)
+
+
+class TestSolutionMass(unittest.TestCase):
+    """Масса раствора складывается из массы вещества и растворителя."""
+
+    def test_mass_additivity(self):
+        from alchemy.engines import solutions as SO
+
+        solution = SO.from_mass_fraction("NaCl", 10.0, solution_mass=200.0)
+        self.assertAlmostEqual(solution.solute_mass + solution.solvent_mass,
+                               solution.total_mass, places=6)
+
+    def test_dilution_keeps_amount(self):
+        from alchemy.engines import solutions as SO
+
+        result = SO.dilution(c_initial=2.0, v_initial=0.1,
+                             v_final=1.0).numeric()
+        self.assertAlmostEqual(result * 1.0, 2.0 * 0.1, places=6)

@@ -157,11 +157,21 @@ def convert(value: float, from_unit: str, to_unit: str) -> float:
     f = normalize(from_unit)
     t = normalize(to_unit)
 
-    if f == t:
-        return value
-
+    # Сначала проверяем, что обе единицы известны, и только потом
+    # разрешаем частный случай «единица в ту же единицу». Иначе
+    # convert(1, «попугай», «попугай») молча возвращал 1.0, хотя такой
+    # единицы не существует.
     dim_f = dimension_of(f)
     dim_t = dimension_of(t)
+
+    # dimension_of возвращает None для неизвестной единицы, а не бросает.
+    # Без этой проверки convert(1, «попугай», «попугай») отвечал 1.0.
+    if dim_f is None or dim_t is None:
+        unknown = f if dim_f is None else t
+        raise UnitError(f"Неизвестная единица: {unknown}")
+
+    if f == t:
+        return value
 
     if dim_f is None:
         raise UnitError(f"Неизвестная единица: {from_unit}")
