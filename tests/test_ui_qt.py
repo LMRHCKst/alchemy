@@ -73,13 +73,13 @@ class TestAppShell(unittest.TestCase):
         self.assertIn("Alchemy", self.window.windowTitle())
 
     def test_all_modules_registered(self):
-        """20 основных, 19 дополнительных и отдельный блок ИИ-чата."""
+        """21 основных, 19 дополнительных и отдельный блок ИИ-чата."""
         self.assertEqual(len(self.window._items),
                          len(BASIC_TABS) + len(ADVANCED_TABS) + len(CHAT_TABS))
-        self.assertEqual(len(BASIC_TABS), 20)
+        self.assertEqual(len(BASIC_TABS), 21)
         self.assertEqual(len(ADVANCED_TABS), 19)
         self.assertEqual(len(CHAT_TABS), 1)
-        self.assertEqual(len(BASIC_TABS) + len(ADVANCED_TABS), 39)
+        self.assertEqual(len(BASIC_TABS) + len(ADVANCED_TABS), 40)
 
     def test_open_every_tab(self):
         for spec in BASIC_TABS + ADVANCED_TABS + CHAT_TABS:

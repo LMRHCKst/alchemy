@@ -174,13 +174,26 @@ def van_der_waals_constants(name: str) -> tuple[float, float]:
 
     Значения взяты из справочника и приведены для распространённых газов.
     """
-    data = _VDW_TABLE.get(str(name).strip())
-    if data is None:
-        raise GasError(
-            f"Нет констант Ван-дер-Ваальса для «{name}». "
-            f"Доступны: {', '.join(sorted(_VDW_TABLE))}"
-        )
-    return data
+    key = str(name).strip()
+    data = _VDW_TABLE.get(key)
+    if data is not None:
+        return data
+
+    # Расширенная таблица: 62 вещества вместо 28. Значения из той же
+    # шкалы (л²·атм/моль²), поэтому пересчёт не нужен.
+    try:
+        from . import tables
+
+        result = tables.vdw_constants(key)
+    except Exception:
+        result = None
+    if result is not None:
+        return (float(result.numeric()), float(result.meta["b"]))
+
+    raise GasError(
+        f"Нет констант Ван-дер-Ваальса для «{name}». "
+        f"Доступны: {', '.join(sorted(_VDW_TABLE))} и ещё 34 газа по названию"
+    )
 
 
 # a в л²·атм/моль², b в л/моль, Tc в К, Pc в атм

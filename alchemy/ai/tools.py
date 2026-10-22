@@ -25,6 +25,7 @@ from ..engines import equilibrium, gases, hardness, kinetics, organic, oxidation
 from ..engines import qualitative, redox, solutions, stoichiometry, thermo
 from ..engines import hydrolysis as hydrolysis_engine
 from ..engines import activity_pitzer as pitzer_engine
+from ..engines import tables as tables_engine
 from ..engines import solubility as solubility_engine
 from ..engines import ioniceq
 from ..engines import valence as valence_engine
@@ -565,6 +566,34 @@ TOOLS: list[dict] = [
              "anion": {**_S, "description": "анион"},
              "molality": {**_N, "description": "моляльность, моль/кг"}},
             ["cation", "anion", "molality"]),
+
+    _schema("electrolysis_products", "Продукты электролиза на катоде и "
+            "аноде для раствора или расплава.",
+            {"electrolyte": {**_S, "description": "формула электролита"},
+             "state": {**_S, "description": "«раствор» или «расплав»"}},
+            ["electrolyte"]),
+
+    _schema("thermal_decomposition", "Что получится при прокаливании: "
+            "нитраты, карбонаты, гидроксиды, сульфаты.",
+            {"substance": {**_S, "description": "формула вещества"}},
+            ["substance"]),
+
+    _schema("qualitative_reaction", "Качественная реакция на ион: цвет "
+            "осадка, признак.",
+            {"ion": {**_S, "description": "ион, например Fe3+"},
+             "reagent": {**_S, "description": "реагент, можно не указывать"}},
+            ["ion"]),
+
+    _schema("solution_density", "Плотность раствора серной кислоты при "
+            "20 °C и молярность через неё.",
+            {"substance": {**_S, "description": "вещество, например H2SO4"},
+             "mass_percent": {**_N, "description": "массовая доля, %"}},
+            ["substance", "mass_percent"]),
+
+    _schema("amphoteric_complex", "Гидроксокомплекс, в который переходит "
+            "амфотерный гидроксид в избытке щёлочи.",
+            {"formula": {**_S, "description": "формула гидроксида"}},
+            ["formula"]),
 ]
 
 #: имя → функция
@@ -637,6 +666,35 @@ def activity_model_comparison(cation: str, anion: str,
                  molality=molality)
 
 
+
+def electrolysis_products(electrolyte: str, state: str = "раствор") -> ToolResult:
+    """Продукты электролиза раствора или расплава."""
+    return _call(tables_engine.electrolysis, electrolyte=electrolyte,
+                 state=state)
+
+
+def thermal_decomposition(substance: str) -> ToolResult:
+    """Что получится при прокаливании вещества."""
+    return _call(tables_engine.decomposition, substance=substance)
+
+
+def qualitative_reaction(ion: str, reagent: str = "") -> ToolResult:
+    """Качественная реакция на ион: признак и осадок."""
+    return _call(tables_engine.qualitative_reaction, ion=ion,
+                 reagent=reagent)
+
+
+def solution_density(substance: str, mass_percent: float) -> ToolResult:
+    """Плотность раствора при 20 °C и молярность через неё."""
+    return _call(tables_engine.concentration_from_density, substance=substance,
+                 mass_percent=mass_percent)
+
+
+def amphoteric_complex(formula: str) -> ToolResult:
+    """В какой гидроксокомплекс переходит амфотерный гидроксид."""
+    return _call(tables_engine.amphoteric, formula=formula)
+
+
 REGISTRY: dict[str, Callable[..., ToolResult]] = {
     "molar_mass": molar_mass,
     "water_of_crystallization": water_of_crystallization,
@@ -665,6 +723,11 @@ REGISTRY: dict[str, Callable[..., ToolResult]] = {
     "half_life": half_life,
     "ionic_equation": ionic_equation,
     "hydrolysis": hydrolysis,
+    "electrolysis_products": electrolysis_products,
+    "thermal_decomposition": thermal_decomposition,
+    "qualitative_reaction": qualitative_reaction,
+    "solution_density": solution_density,
+    "amphoteric_complex": amphoteric_complex,
     "pitzer_gamma": pitzer_gamma,
     "activity_model_comparison": activity_model_comparison,
     "solubility_pure_water": solubility_pure_water,

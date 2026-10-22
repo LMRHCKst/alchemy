@@ -80,13 +80,28 @@ def _oxygen_state(formula: str) -> float:
     return -2.0
 
 
+#: металлы, которые образуют гидриды с H(−1)
+_HYDRIDE_METALS = {
+    "Li", "Na", "K", "Rb", "Cs", "Fr",
+    "Be", "Mg", "Ca", "Sr", "Ba", "Ra",
+    "Al", "Ga", "In", "Tl", "B",
+}
+
+
 def _hydrogen_state(formula: str, other_elements: list[str]) -> float:
-    """Степень окисления водорода: +1, но в гидридах металлов −1."""
-    normalized = F.normalize_input(formula)
-    metals = [el for el in other_elements
-              if (periodic.by_symbol(el).category or "").startswith("Щелочн")
-              or el in ("Na", "K", "Li", "Ca", "Mg", "Ba", "Al")]
-    if metals and normalized.count("H") and len(other_elements) == 1:
+    """Степень окисления водорода: +1, но в гидридах металлов −1.
+
+    Rаньше условие требовало ровно один «другой» элемент, а в список
+    other_elements попадал и сам водород, поэтому NaH, CaH2 и LiAlH4
+    давали H(+1) и вся формула не сходилась по заряду.
+    """
+    others = [el for el in other_elements if el != "H"]
+    if not others:
+        return 1.0
+    # кислород и неметаллы делают водород обычным +1
+    if "O" in others:
+        return 1.0
+    if all(el in _HYDRIDE_METALS for el in others):
         return -1.0
     return 1.0
 
@@ -198,6 +213,13 @@ def oxidation_states(text: str) -> Result:
     for element, state in _radical_fixes(raw).items():
         known[element] = state
         origins[element] = "из кислотного остатка"
+
+    # Дисульфиды: в пирите FeS2 сера не −2, а −1, потому что там
+    # связь S–S. Школьное правило «сера −2» даёт Fe(+4) и не сходится.
+    if raw.endswith("S2") and "S" not in known and "Fe" in elements:
+        known["S"] = -1.0
+        origins["S"] = "дисульфид: связь S–S"
+        notes["S"] = "в пирите сера −1, а не −2"
 
     for element in elements:
         if element in known:

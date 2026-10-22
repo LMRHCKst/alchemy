@@ -22,6 +22,7 @@ from ..engines import hydrolysis as HD
 from ..engines import ioniceq as IE
 from ..engines import redox as RX
 from ..engines import solubility as SLB
+from ..engines import tables as TB
 from ..engines import valence as VL
 from .components import BaseTab, Card, LabeledCombo, LabeledEntry
 
@@ -633,4 +634,108 @@ class SolubilityTab(BaseTab):
                 salt,
                 float(self.fields["target"].get().replace(",", ".") or 0.01))
         return SLB.solubility_pure_water(salt)
+
+
+# ==========================================================================
+# 12. Справочные таблицы
+# ==========================================================================
+
+
+class TablesTab(BaseTab):
+    """Готовые школьные таблицы: что с чем реагирует и что получится."""
+
+    title = "Справочные таблицы"
+    description = ("Электролиз, термическое разложение, качественные реакции, "
+                   "плотность растворов, амфотерные гидроксиды и комплексы.")
+    action_label = "Показать"
+    history_action = "Справочная таблица"
+
+    MODES = [
+        "Электролиз",
+        "Термическое разложение",
+        "Качественная реакция",
+        "Плотность раствора",
+        "Амфотерный гидроксид",
+        "Комплекс или полимер",
+    ]
+
+    def build_inputs(self, parent):
+        self.mode = LabeledCombo(parent, "Таблица:", self.MODES, width=340)
+        self.mode.pack(fill="x", pady=4)
+        self.mode.combo.configure(command=self._rebuild)
+
+        self.area = ctk.CTkFrame(parent, fg_color="transparent")
+        self.area.pack(fill="x", pady=6)
+        self._rebuild()
+
+    def _rebuild(self):
+        for widget in self.area.winfo_children():
+            widget.destroy()
+        self.fields = {}
+        mode = self.mode.get()
+
+        if mode == self.MODES[0]:
+            _field(self.area, self.fields, "substance", "Электролит",
+                   "CuSO4", width=240)
+            self.state = LabeledCombo(self.area, "Состояние:",
+                                      ["раствор", "расплав"], width=200)
+            self.state.pack(fill="x", pady=3)
+            hint = ("Катод: активные металлы дают водород, остальные — металл. "
+                    "Анод: галогениды дают галоген, кислородные анионы — O₂.")
+        elif mode == self.MODES[1]:
+            _field(self.area, self.fields, "substance", "Вещество",
+                   "CaCO3", width=240)
+            hint = ("Правило нитратов: левее Mg — нитрит, Mg…Cu — оксид, "
+                    "правее Cu — металл.")
+        elif mode == self.MODES[2]:
+            _field(self.area, self.fields, "ion", "Ион", "Fe3+", width=200)
+            _field(self.area, self.fields, "reagent", "Реагент (можно пусто)",
+                   "OH", width=200)
+            hint = "Пусто в реагенте — покажем все известные реакции на ион."
+        elif mode == self.MODES[3]:
+            _field(self.area, self.fields, "substance", "Вещество",
+                   "H2SO4", width=240)
+            _field(self.area, self.fields, "percent", "Массовая доля, %",
+                   "98", width=160)
+            hint = ("Таблица плотности серной кислоты: шаг 1 %, NBS, "
+                    "0…100 %. Считается и молярность.")
+        elif mode == self.MODES[4]:
+            _field(self.area, self.fields, "formula",
+                   "Амфотерный гидроксид", "Zn(OH)2", width=240)
+            hint = ("Zn(OH)₂, Al(OH)₃, Be(OH)₂, Cr(OH)₃, Pb(OH)₂, Sn(OH)₂. "
+                    "Покажем комплекс и реакции растворения.")
+        else:
+            _field(self.area, self.fields, "query", "Формула или название",
+                   "[Cu(NH3)4]SO4", width=280)
+            hint = ("Комплекс из школьного списка (25 соединений) или "
+                    "полимер (15 штук): полиэтилен, капрон, лавсан…")
+
+        ctk.CTkLabel(self.area, text=hint, font=("Segoe UI", 10),
+                     text_color=theme.COLOR_TEXT_DIM, anchor="w",
+                     wraplength=760).pack(fill="x", pady=(6, 0))
+        self.bind_enter()
+
+    def calculate(self) -> Result:
+        mode = self.mode.get()
+
+        if mode == self.MODES[0]:
+            return TB.electrolysis(self.fields["substance"].get(),
+                                   self.state.get())
+        if mode == self.MODES[1]:
+            return TB.decomposition(self.fields["substance"].get())
+        if mode == self.MODES[2]:
+            return TB.qualitative_reaction(self.fields["ion"].get(),
+                                           self.fields["reagent"].get())
+        if mode == self.MODES[3]:
+            percent = self.fields["percent"].get().replace(",", ".") or "98"
+            return TB.concentration_from_density(
+                self.fields["substance"].get(), float(percent))
+        if mode == self.MODES[4]:
+            return TB.amphoteric(self.fields["formula"].get())
+
+        query = self.fields["query"].get()
+        try:
+            return TB.complex_info(query)
+        except AlchemyError:
+            return TB.polymer_info(query)
 
